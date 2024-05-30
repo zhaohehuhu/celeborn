@@ -56,6 +56,8 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
 
   val hasHDFSStorage = conf.hasHDFSStorage
 
+  val hasS3Storage = conf.hasS3Storage
+
   val storageExpireDirTimeout = conf.workerStorageExpireDirTimeout
 
   // (deviceName -> deviceInfo) and (mount point -> diskInfo)
@@ -65,16 +67,18 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
         (new File(workdir, conf.workerWorkingDir), maxSpace, flusherThread, storageType)
       }
 
-    if (workingDirInfos.size <= 0 && !hasHDFSStorage) {
+    if (workingDirInfos.size <= 0 && !hasHDFSStorage && !hasS3Storage) {
       throw new IOException("Empty working directory configuration!")
     }
 
     DeviceInfo.getDeviceAndDiskInfos(workingDirInfos, conf)
   }
   val mountPoints = new util.HashSet[String](diskInfos.keySet())
-  val hdfsDiskInfo =
+  val dfsDiskInfo =
     if (conf.hasHDFSStorage)
       Option(new DiskInfo("HDFS", Long.MaxValue, 999999, 999999, 0, StorageInfo.Type.HDFS))
+    else if(conf.hasS3Storage)
+      Option(new DiskInfo("OSS", Long.MaxValue, 999999, 999999, 0, StorageInfo.Type.OSS))
     else None
 
   def disksSnapshot(): List[DiskInfo] = {
@@ -136,11 +140,15 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
   deviceMonitor.startCheck()
 
   val hdfsDir = conf.hdfsDir
+  val s3Dir = conf.s3Dir
   val hdfsPermission = new FsPermission("755")
   val hdfsWriters = JavaUtils.newConcurrentHashMap[String, PartitionDataWriter]()
-  val (hdfsFlusher, _totalHdfsFlusherThread) =
-    if (hasHDFSStorage) {
-      logInfo(s"Initialize HDFS support with path ${hdfsDir}")
+  val s3Writers = JavaUtils.newConcurrentHashMap[String, PartitionDataWriter]()
+
+  val (dfsFlusher, _totalDfsFlusherThread) =
+    if (hasHDFSStorage || hasS3Storage) {
+      val dir = if (hasHDFSStorage) hdfsDir else s3Dir
+      logInfo(s"Initialize DFS support with path ${dir}")
       try {
         StorageManager.hadoopFs = CelebornHadoopUtils.getHadoopFS(conf)
       } catch {
@@ -159,7 +167,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
       (None, 0)
     }
 
-  def totalFlusherThread: Int = _totalLocalFlusherThread + _totalHdfsFlusherThread
+  def totalFlusherThread: Int = _totalLocalFlusherThread + _totalDfsFlusherThread
 
   override def notifyError(mountPoint: String, diskStatus: DiskStatus): Unit = this.synchronized {
     if (diskStatus == DiskStatus.CRITICAL_ERROR) {
@@ -812,7 +820,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
             s" working dirs. diskInfo $diskInfo")
           healthyWorkingDirs()
         }
-      if (dirs.isEmpty && hdfsFlusher.isEmpty) {
+      if (dirs.isEmpty && dfsFlusher.isEmpty) {
         throw new IOException(s"No available disks! suggested mountPoint $suggestedMountPoint")
       }
 
@@ -830,7 +838,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
         diskFileInfos.computeIfAbsent(shuffleKey, diskFileInfoMapFunc).put(
           fileName,
           hdfsFileInfo)
-        return (hdfsFlusher.get, hdfsFileInfo, null)
+        return (dfsFlusher.get, hdfsFileInfo, null)
       } else if (dirs.nonEmpty && location.getStorageInfo.localDiskAvailable()) {
         val dir = dirs(getNextIndex() % dirs.size)
         val mountPoint = DeviceInfo.getMountPoint(dir.getAbsolutePath, mountPoints)

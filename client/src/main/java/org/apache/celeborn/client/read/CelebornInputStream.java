@@ -465,6 +465,9 @@ public abstract class CelebornInputStream extends InputStream {
         case HDFS:
           return new DfsPartitionReader(
               conf, shuffleKey, location, clientFactory, startMapIndex, endMapIndex, callback);
+        case OSS:
+          return new DfsPartitionReader(
+                  conf, shuffleKey, location, clientFactory, startMapIndex, endMapIndex, callback);
         default:
           throw new CelebornIOException(
               String.format("Unknown storage info %s to read location %s", storageInfo, location));

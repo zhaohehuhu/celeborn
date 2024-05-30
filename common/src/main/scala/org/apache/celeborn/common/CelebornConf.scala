@@ -641,6 +641,9 @@ class CelebornConf(loadDefaults: Boolean) extends Cloneable with Logging with Se
   }
   def hasHDFSStorage: Boolean =
     get(ACTIVE_STORAGE_TYPES).contains(StorageInfo.Type.HDFS.name()) && get(HDFS_DIR).isDefined
+
+  def hasS3Storage: Boolean =
+    get(ACTIVE_STORAGE_TYPES).contains(StorageInfo.Type.OSS.name()) && get(S3_DIR).isDefined
   def masterSlotAssignLoadAwareDiskGroupNum: Int = get(MASTER_SLOT_ASSIGN_LOADAWARE_DISKGROUP_NUM)
   def masterSlotAssignLoadAwareDiskGroupGradient: Double =
     get(MASTER_SLOT_ASSIGN_LOADAWARE_DISKGROUP_GRADIENT)
@@ -1103,6 +1106,37 @@ class CelebornConf(loadDefaults: Boolean) extends Cloneable with Logging with Se
   def partitionSplitMinimumSize: Long = get(WORKER_PARTITION_SPLIT_MIN_SIZE)
   def partitionSplitMaximumSize: Long = get(WORKER_PARTITION_SPLIT_MAX_SIZE)
 
+  def s3AccessKey: String = get(S3_ACCESS_KEY).map {
+    s3AccessKey =>
+      if (s3AccessKey.isEmpty) {
+        log.error(s"${S3_ACCESS_KEY.key} configuration is wrong $s3AccessKey. Disable S3 support.")
+        ""
+      } else {
+        s3AccessKey
+      }
+  }.getOrElse("")
+
+  def s3SecretKey: String = get(S3_SECRET_KEY).map {
+    s3SecretKey =>
+      if (s3SecretKey.isEmpty) {
+        log.error(s"${S3_SECRET_KEY.key} configuration is wrong $s3SecretKey. Disable S3 support.")
+        ""
+      } else {
+        s3SecretKey
+      }
+  }.getOrElse("")
+
+  def s3EndpointRegion: String = get(S3_ENDPOINT_REGION).map {
+    s3EndpointRegion =>
+      if (s3EndpointRegion.isEmpty) {
+        log.error(s"${S3_ENDPOINT_REGION.key} configuration is wrong $s3EndpointRegion. Disable S3 support.")
+        ""
+      } else {
+        s3EndpointRegion
+      }
+  }.getOrElse("")
+
+
   def hdfsDir: String = {
     get(HDFS_DIR).map {
       hdfsDir =>
@@ -1111,6 +1145,18 @@ class CelebornConf(loadDefaults: Boolean) extends Cloneable with Logging with Se
           ""
         } else {
           hdfsDir
+        }
+    }.getOrElse("")
+  }
+
+  def s3Dir: String = {
+    get(S3_DIR).map {
+      s3Dir =>
+        if (!Utils.isS3Path(s3Dir)) {
+          log.error(s"${S3_DIR.key} configuration is wrong $hdfsDir. Disable HDFS support.")
+          ""
+        } else {
+          s3Dir
         }
     }.getOrElse("")
   }
@@ -2677,6 +2723,38 @@ object CelebornConf extends Logging {
       .categories("worker", "master", "client")
       .version("0.2.0")
       .doc("HDFS base directory for Celeborn to store shuffle data.")
+      .stringConf
+      .createOptional
+
+  val S3_DIR: OptionalConfigEntry[String] =
+    buildConf("celeborn.storage.s3.dir")
+      .categories("worker", "master", "client")
+      .version("0.2.0")
+      .doc("S3 base directory for Celeborn to store shuffle data.")
+      .stringConf
+      .createOptional
+
+  val S3_SECRET_KEY: OptionalConfigEntry[String] =
+    buildConf("celeborn.storage.s3.secret.key")
+      .categories("worker", "master", "client")
+      .version("0.2.0")
+      .doc("S3 secret key for Celeborn to store shuffle data.")
+      .stringConf
+      .createOptional
+
+  val S3_ACCESS_KEY: OptionalConfigEntry[String] =
+    buildConf("celeborn.storage.s3.access.key")
+      .categories("worker", "master", "client")
+      .version("0.2.0")
+      .doc("S3 access key for Celeborn to store shuffle data.")
+      .stringConf
+      .createOptional
+
+  val S3_ENDPOINT_REGION: OptionalConfigEntry[String] =
+    buildConf("celeborn.storage.s3.endpoint.region")
+      .categories("worker", "master", "client")
+      .version("0.2.0")
+      .doc("S3 endpoint region for Celeborn to store shuffle data.")
       .stringConf
       .createOptional
 
@@ -4790,7 +4868,7 @@ object CelebornConf extends Logging {
       .categories("master", "worker", "client")
       .version("0.3.0")
       .doc(
-        "Enabled storages. Available options: MEMORY,HDD,SSD,HDFS. Note: HDD and SSD would be treated as identical.")
+        "Enabled storages. Available options: MEMORY,HDD,SSD,HDFS,S3. Note: HDD and SSD would be treated as identical.")
       .stringConf
       .transform(_.toUpperCase(Locale.ROOT))
       .checkValue(p => p.split(",").map(StorageInfo.validate(_)).reduce(_ && _), "")

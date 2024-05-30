@@ -52,3 +52,14 @@ private[worker] class HdfsFlushTask(
     hdfsStream.close()
   }
 }
+
+private[worker] class S3FlushTask(
+                                   buffer: CompositeByteBuf,
+                                   val path: Path,
+                                   notifier: FlushNotifier) extends FlushTask(buffer, notifier) {
+  override def flush(): Unit = {
+    val s3Stream = StorageManager.hadoopFs.append(path, 256 * 1024)
+    s3Stream.write(ByteBufUtil.getBytes(buffer))
+    s3Stream.close()
+  }
+}

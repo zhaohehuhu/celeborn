@@ -45,6 +45,11 @@ object CelebornHadoopUtils extends Logging {
             "It can be overridden again in Celeborn configuration with the additional " +
             "prefix 'celeborn.hadoop.', e.g. 'celeborn.hadoop.dfs.replication=3'")
       }
+    } else if (conf.s3Dir.nonEmpty){
+      hadoopConf.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+      hadoopConf.set("fs.s3a.access.key", conf.s3AccessKey)
+      hadoopConf.set("fs.s3a.secret.key", conf.s3SecretKey)
+      hadoopConf.set("fs.s3a.endpoint", conf.s3EndpointRegion)
     }
     appendSparkHadoopConfigs(conf, hadoopConf)
     hadoopConf
@@ -60,15 +65,20 @@ object CelebornHadoopUtils extends Logging {
   def getHadoopFS(conf: CelebornConf): FileSystem = {
     val hadoopConf = newConfiguration(conf)
     initKerberos(conf, hadoopConf)
-    new Path(conf.hdfsDir).getFileSystem(hadoopConf)
+    val dir = if (conf.hdfsDir != null) {
+      conf.hdfsDir
+    } else {
+      conf.s3Dir
+    }
+    new Path(dir).getFileSystem(hadoopConf)
   }
 
-  def deleteHDFSPathOrLogError(hadoopFs: FileSystem, path: Path, recursive: Boolean): Unit = {
+  def deleteDFSPathOrLogError(hadoopFs: FileSystem, path: Path, recursive: Boolean): Unit = {
     try {
       val startTime = System.currentTimeMillis()
       hadoopFs.delete(path, recursive)
       logInfo(
-        s"Delete HDFS ${path}(recursive=$recursive) costs " +
+        s"Delete DFS ${path}(recursive=$recursive) costs " +
           Utils.msDurationToString(System.currentTimeMillis() - startTime))
     } catch {
       case e: IOException =>

@@ -133,41 +133,45 @@ public class DiskFileInfo extends FileInfo {
     return Utils.getIndexFilePath(filePath);
   }
 
-  public Path getHdfsPath() {
+  public Path getDfsPath() {
     return new Path(filePath);
   }
 
-  public Path getHdfsIndexPath() {
+
+  public Path getDfsIndexPath() {
     return new Path(Utils.getIndexFilePath(filePath));
   }
 
-  public Path getHdfsSortedPath() {
+
+  public Path getDfsSortedPath() {
     return new Path(Utils.getSortedFilePath(filePath));
   }
 
-  public Path getHdfsWriterSuccessPath() {
+  public Path getDfsWriterSuccessPath() {
     return new Path(Utils.getWriteSuccessFilePath(filePath));
   }
 
-  public Path getHdfsPeerWriterSuccessPath() {
+
+
+  public Path getDfsPeerWriterSuccessPath() {
     return new Path(Utils.getWriteSuccessFilePath(Utils.getPeerPath(filePath)));
   }
 
   public void deleteAllFiles(FileSystem hdfsFs) {
     if (isHdfs()) {
       try {
-        hdfsFs.delete(getHdfsPath(), false);
-        hdfsFs.delete(getHdfsWriterSuccessPath(), false);
-        hdfsFs.delete(getHdfsIndexPath(), false);
-        hdfsFs.delete(getHdfsSortedPath(), false);
+        hdfsFs.delete(getDfsPath(), false);
+        hdfsFs.delete(getDfsWriterSuccessPath(), false);
+        hdfsFs.delete(getDfsIndexPath(), false);
+        hdfsFs.delete(getDfsSortedPath(), false);
       } catch (Exception e) {
         // ignore delete exceptions because some other workers might be deleting the directory
         logger.debug(
             "delete HDFS file {},{},{},{} failed {}",
-            getHdfsPath(),
-            getHdfsWriterSuccessPath(),
-            getHdfsIndexPath(),
-            getHdfsSortedPath(),
+            getDfsPath(),
+            getDfsWriterSuccessPath(),
+            getDfsIndexPath(),
+            getDfsSortedPath(),
             e);
       }
     } else {
@@ -191,5 +195,9 @@ public class DiskFileInfo extends FileInfo {
 
   public boolean isHdfs() {
     return Utils.isHdfsPath(filePath);
+  }
+
+  public boolean isS3() {
+    return Utils.isS3Path(filePath);
   }
 }

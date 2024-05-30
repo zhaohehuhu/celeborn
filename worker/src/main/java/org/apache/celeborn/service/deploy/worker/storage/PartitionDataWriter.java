@@ -121,7 +121,7 @@ public abstract class PartitionDataWriter implements DeviceObserver {
       // create a DataStreamer that is a thread.
       // If we reuse HDFS output stream, we will exhaust the memory soon.
       try {
-        StorageManager.hadoopFs().create(this.diskFileInfo.getHdfsPath(), true).close();
+        StorageManager.hadoopFs().create(this.diskFileInfo.getDfsPath(), true).close();
       } catch (IOException e) {
         try {
           // If create file failed, wait 10 ms and retry
@@ -129,7 +129,7 @@ public abstract class PartitionDataWriter implements DeviceObserver {
         } catch (InterruptedException ex) {
           throw new RuntimeException(ex);
         }
-        StorageManager.hadoopFs().create(this.diskFileInfo.getHdfsPath(), true).close();
+        StorageManager.hadoopFs().create(this.diskFileInfo.getDfsPath(), true).close();
       }
     }
     source = workerSource;
@@ -168,7 +168,7 @@ public abstract class PartitionDataWriter implements DeviceObserver {
           if (channel != null) {
             task = new LocalFlushTask(flushBuffer, channel, notifier);
           } else if (diskFileInfo.isHdfs()) {
-            task = new HdfsFlushTask(flushBuffer, diskFileInfo.getHdfsPath(), notifier);
+            task = new HdfsFlushTask(flushBuffer, diskFileInfo.getDfsPath(), notifier);
           }
           addTask(task);
           flushBuffer = null;

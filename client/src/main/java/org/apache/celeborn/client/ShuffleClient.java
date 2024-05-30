@@ -47,7 +47,7 @@ public abstract class ShuffleClient {
   private static Logger logger = LoggerFactory.getLogger(ShuffleClient.class);
   private static volatile ShuffleClient _instance;
   private static volatile boolean initialized = false;
-  private static volatile FileSystem hdfsFs;
+  private static volatile FileSystem fileSystem;
   private static LongAdder totalReadCounter = new LongAdder();
   private static LongAdder localShuffleReadCounter = new LongAdder();
 
@@ -55,7 +55,7 @@ public abstract class ShuffleClient {
   public static void reset() {
     _instance = null;
     initialized = false;
-    hdfsFs = null;
+    fileSystem = null;
   }
 
   protected ShuffleClient() {}
@@ -101,19 +101,19 @@ public abstract class ShuffleClient {
     return _instance;
   }
 
-  public static FileSystem getHdfsFs(CelebornConf conf) {
-    if (null == hdfsFs) {
+  public static FileSystem getFileSystem(CelebornConf conf) {
+    if (null == fileSystem) {
       synchronized (ShuffleClient.class) {
-        if (null == hdfsFs) {
+        if (null == fileSystem) {
           try {
-            hdfsFs = CelebornHadoopUtils.getHadoopFS(conf);
+            fileSystem = CelebornHadoopUtils.getHadoopFS(conf);
           } catch (Exception e) {
             logger.error("Celeborn initialize HDFS failed.", e);
           }
         }
       }
     }
-    return hdfsFs;
+    return fileSystem;
   }
 
   public static void incrementLocalReadCounter() {

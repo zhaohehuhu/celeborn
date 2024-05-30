@@ -174,6 +174,7 @@ private[celeborn] class Master(
 
   private val hdfsExpireDirsTimeoutMS = conf.hdfsExpireDirsTimeoutMS
   private val hasHDFSStorage = conf.hasHDFSStorage
+  private val hasS3Storage = conf.hasS3Storage
 
   private val quotaManager = new QuotaManager(conf, configService)
   private val masterResourceConsumptionInterval = conf.masterResourceConsumptionInterval
@@ -974,18 +975,19 @@ private[celeborn] class Master(
           throw e
       }
     }
-    val hdfsWorkPath = new Path(conf.hdfsDir, conf.workerWorkingDir)
-    if (hadoopFs.exists(hdfsWorkPath)) {
+    val dir = if (hasHDFSStorage) conf.hdfsDir else conf.s3Dir
+    val dfsWorkPath = new Path(dir, conf.workerWorkingDir)
+    if (hadoopFs.exists(dfsWorkPath)) {
       if (expiredDir.nonEmpty) {
-        val dirToDelete = new Path(hdfsWorkPath, expiredDir)
+        val dirToDelete = new Path(dfsWorkPath, expiredDir)
         // delete specific app dir on application lost
-        CelebornHadoopUtils.deleteHDFSPathOrLogError(hadoopFs, dirToDelete, true)
+        CelebornHadoopUtils.deleteDFSPathOrLogError(hadoopFs, dirToDelete, true)
       } else {
-        val iter = hadoopFs.listStatusIterator(hdfsWorkPath)
+        val iter = hadoopFs.listStatusIterator(dfsWorkPath)
         while (iter.hasNext && isMasterActive == 1) {
           val fileStatus = iter.next()
           if (!statusSystem.appHeartbeatTime.containsKey(fileStatus.getPath.getName)) {
-            CelebornHadoopUtils.deleteHDFSPathOrLogError(hadoopFs, fileStatus.getPath, true)
+            CelebornHadoopUtils.deleteDFSPathOrLogError(hadoopFs, fileStatus.getPath, true)
           }
         }
       }
