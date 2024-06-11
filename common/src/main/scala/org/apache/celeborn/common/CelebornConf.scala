@@ -1129,13 +1129,13 @@ class CelebornConf(loadDefaults: Boolean) extends Cloneable with Logging with Se
   def s3EndpointRegion: String = get(S3_ENDPOINT_REGION).map {
     s3EndpointRegion =>
       if (s3EndpointRegion.isEmpty) {
-        log.error(s"${S3_ENDPOINT_REGION.key} configuration is wrong $s3EndpointRegion. Disable S3 support.")
+        log.error(
+          s"${S3_ENDPOINT_REGION.key} configuration is wrong $s3EndpointRegion. Disable S3 support.")
         ""
       } else {
         s3EndpointRegion
       }
   }.getOrElse("")
-
 
   def hdfsDir: String = {
     get(HDFS_DIR).map {

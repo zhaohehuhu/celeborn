@@ -186,15 +186,15 @@ final private[worker] class HdfsFlusher(
 }
 
 final private[worker] class S3Flusher(
-                                         workerSource: AbstractSource,
-                                         s3FlusherThreads: Int,
-                                         allocator: PooledByteBufAllocator,
-                                         maxComponents: Int) extends Flusher(
-  workerSource,
-  s3FlusherThreads,
-  allocator,
-  maxComponents,
-  null) with Logging {
+    workerSource: AbstractSource,
+    s3FlusherThreads: Int,
+    allocator: PooledByteBufAllocator,
+    maxComponents: Int) extends Flusher(
+    workerSource,
+    s3FlusherThreads,
+    allocator,
+    maxComponents,
+    null) with Logging {
 
   override def processIOException(e: IOException, deviceErrorType: DiskStatus): Unit = {
     logError(s"$this write failed, reason $deviceErrorType ,exception: $e")

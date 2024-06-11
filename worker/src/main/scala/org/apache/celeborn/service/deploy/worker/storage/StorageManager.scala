@@ -77,7 +77,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
   val dfsDiskInfo =
     if (conf.hasHDFSStorage)
       Option(new DiskInfo("HDFS", Long.MaxValue, 999999, 999999, 0, StorageInfo.Type.HDFS))
-    else if(conf.hasS3Storage)
+    else if (conf.hasS3Storage)
       Option(new DiskInfo("OSS", Long.MaxValue, 999999, 999999, 0, StorageInfo.Type.OSS))
     else None
 
@@ -609,11 +609,12 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
         }
 
       val hdfsCleaned = hadoopFs match {
-        case hdfs: FileSystem =>
-          val hdfsWorkPath = new Path(hdfsDir, conf.workerWorkingDir)
+        case dfs: FileSystem =>
+          val dir = if (hasHDFSStorage) hdfsDir else s3Dir
+          val dfsWorkPath = new Path(dir, conf.workerWorkingDir)
           // HDFS path not exist when first time initialize
-          if (hdfs.exists(hdfsWorkPath)) {
-            !hdfs.listFiles(hdfsWorkPath, false).hasNext
+          if (dfs.exists(dfsWorkPath)) {
+            !dfs.listFiles(dfsWorkPath, false).hasNext
           } else {
             true
           }

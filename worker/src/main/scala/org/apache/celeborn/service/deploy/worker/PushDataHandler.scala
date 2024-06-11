@@ -20,13 +20,16 @@ package org.apache.celeborn.service.deploy.worker
 import java.nio.ByteBuffer
 import java.util.concurrent.{ConcurrentHashMap, ThreadPoolExecutor}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicIntegerArray}
+
 import scala.collection.JavaConverters._
 import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success, Try}
+
 import com.google.common.base.Throwables
 import com.google.protobuf.GeneratedMessageV3
 import io.netty.buffer.ByteBuf
+
 import org.apache.celeborn.common.exception.{AlreadyClosedException, CelebornIOException}
 import org.apache.celeborn.common.internal.Logging
 import org.apache.celeborn.common.meta.{DiskFileInfo, DiskStatus, WorkerInfo, WorkerPartitionLocationInfo}
@@ -1182,7 +1185,8 @@ class PushDataHandler(val workerSource: WorkerSource) extends BaseMessageHandler
   }
 
   private def checkDiskFull(fileWriter: PartitionDataWriter): Boolean = {
-    if (fileWriter.flusher.isInstanceOf[HdfsFlusher] || fileWriter.flusher.isInstanceOf[S3Flusher]) {
+    if (fileWriter.flusher.isInstanceOf[HdfsFlusher] || fileWriter.flusher.isInstanceOf[
+        S3Flusher]) {
       return false
     }
     val mountPoint = fileWriter.flusher.asInstanceOf[LocalFlusher].mountPoint

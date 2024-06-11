@@ -157,7 +157,8 @@ public class DfsPartitionReader implements PartitionReader {
     try (FSDataInputStream indexInputStream =
         ShuffleClient.getFileSystem(conf).open(new Path(indexPath))) {
       logger.debug("read sorted index {}", indexPath);
-      long indexSize = ShuffleClient.getFileSystem(conf).getFileStatus(new Path(indexPath)).getLen();
+      long indexSize =
+          ShuffleClient.getFileSystem(conf).getFileStatus(new Path(indexPath)).getLen();
       // Index size won't be large, so it's safe to do the conversion.
       byte[] indexBuffer = new byte[(int) indexSize];
       indexInputStream.readFully(0L, indexBuffer);

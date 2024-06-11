@@ -45,11 +45,12 @@ object CelebornHadoopUtils extends Logging {
             "It can be overridden again in Celeborn configuration with the additional " +
             "prefix 'celeborn.hadoop.', e.g. 'celeborn.hadoop.dfs.replication=3'")
       }
-    } else if (conf.s3Dir.nonEmpty){
+    } else if (conf.s3Dir.nonEmpty) {
       hadoopConf.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
       hadoopConf.set("fs.s3a.access.key", conf.s3AccessKey)
       hadoopConf.set("fs.s3a.secret.key", conf.s3SecretKey)
       hadoopConf.set("fs.s3a.endpoint", conf.s3EndpointRegion)
+      hadoopConf.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
     }
     appendSparkHadoopConfigs(conf, hadoopConf)
     hadoopConf
@@ -65,11 +66,13 @@ object CelebornHadoopUtils extends Logging {
   def getHadoopFS(conf: CelebornConf): FileSystem = {
     val hadoopConf = newConfiguration(conf)
     initKerberos(conf, hadoopConf)
-    val dir = if (conf.hdfsDir != null) {
-      conf.hdfsDir
-    } else {
-      conf.s3Dir
-    }
+    val dir =
+      if (conf.hasHDFSStorage) {
+        conf.hdfsDir
+      } else {
+        conf.s3Dir
+      }
+    logError(s"the storage dir is : $dir")
     new Path(dir).getFileSystem(hadoopConf)
   }
 

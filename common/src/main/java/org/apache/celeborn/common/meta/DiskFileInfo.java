@@ -137,11 +137,9 @@ public class DiskFileInfo extends FileInfo {
     return new Path(filePath);
   }
 
-
   public Path getDfsIndexPath() {
     return new Path(Utils.getIndexFilePath(filePath));
   }
-
 
   public Path getDfsSortedPath() {
     return new Path(Utils.getSortedFilePath(filePath));
@@ -150,8 +148,6 @@ public class DiskFileInfo extends FileInfo {
   public Path getDfsWriterSuccessPath() {
     return new Path(Utils.getWriteSuccessFilePath(filePath));
   }
-
-
 
   public Path getDfsPeerWriterSuccessPath() {
     return new Path(Utils.getWriteSuccessFilePath(Utils.getPeerPath(filePath)));

@@ -279,8 +279,7 @@ class FetchHandler(
             shuffleKey,
             fileName)
           makeStreamHandler(streamId, numChunks = 0)
-        }
-        else {
+        } else {
           chunkStreamManager.registerStream(
             streamId,
             shuffleKey,
