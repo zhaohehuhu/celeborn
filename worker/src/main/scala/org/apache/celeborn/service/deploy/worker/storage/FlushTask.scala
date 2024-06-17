@@ -18,9 +18,10 @@
 package org.apache.celeborn.service.deploy.worker.storage
 
 import java.nio.channels.FileChannel
-
 import io.netty.buffer.{ByteBufUtil, CompositeByteBuf}
+import org.apache.celeborn.service.deploy.worker.storage.StorageManager.hadoopFs
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.io.IOUtils
 
 abstract private[worker] class FlushTask(
     val buffer: CompositeByteBuf,
@@ -58,8 +59,30 @@ private[worker] class S3FlushTask(
     val path: Path,
     notifier: FlushNotifier) extends FlushTask(buffer, notifier) {
   override def flush(): Unit = {
-    val s3Stream = StorageManager.hadoopFs.append(path, 256 * 1024)
-    s3Stream.write(ByteBufUtil.getBytes(buffer))
-    s3Stream.close()
+    if (StorageManager.hadoopFs.exists(path)) {
+      val conf = hadoopFs.getConf
+      val tempPath = new Path(path.getParent, path.getName + ".tmp")
+      // Step 1: Create a temporary file output stream
+      val outputStream = hadoopFs.create(tempPath, true, 256 * 1024)
+      // Step 2: Copy the contents of the existing file to the temporary file
+      val inputStream = hadoopFs.open(path)
+      try {
+        IOUtils.copyBytes(inputStream, outputStream, conf, false)
+      } finally {
+        inputStream.close()
+      }
+      // Step 3: Append the new buffer content to the temporary file
+      outputStream.write(ByteBufUtil.getBytes(buffer))
+      // Step 4: Close the output stream
+      outputStream.close()
+      // Step 5: Delete the original file and rename the temporary file to the original file name
+      hadoopFs.delete(path, false)
+      hadoopFs.rename(tempPath, path)
+    } else {
+      val s3Stream = StorageManager.hadoopFs.create(path, true, 256 * 1024)
+      s3Stream.write(ByteBufUtil.getBytes(buffer))
+      s3Stream.close()
+    }
   }
 }
+

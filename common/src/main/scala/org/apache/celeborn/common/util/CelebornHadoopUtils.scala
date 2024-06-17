@@ -49,7 +49,7 @@ object CelebornHadoopUtils extends Logging {
       hadoopConf.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
       hadoopConf.set("fs.s3a.access.key", conf.s3AccessKey)
       hadoopConf.set("fs.s3a.secret.key", conf.s3SecretKey)
-      hadoopConf.set("fs.s3a.endpoint", conf.s3EndpointRegion)
+      hadoopConf.set("fs.s3a.endpoint", conf.s3Endpoint)
       hadoopConf.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
     }
     appendSparkHadoopConfigs(conf, hadoopConf)
@@ -72,7 +72,6 @@ object CelebornHadoopUtils extends Logging {
       } else {
         conf.s3Dir
       }
-    logError(s"the storage dir is : $dir")
     new Path(dir).getFileSystem(hadoopConf)
   }
 
@@ -85,7 +84,7 @@ object CelebornHadoopUtils extends Logging {
           Utils.msDurationToString(System.currentTimeMillis() - startTime))
     } catch {
       case e: IOException =>
-        logError(s"Failed to delete HDFS ${path}(recursive=$recursive) due to: ", e)
+        logError(s"Failed to delete DFS ${path}(recursive=$recursive) due to: ", e)
     }
   }
 

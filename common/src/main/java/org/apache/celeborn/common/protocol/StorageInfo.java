@@ -151,6 +151,10 @@ public class StorageInfo implements Serializable {
     return availableStorageTypes == HDFS_MASK;
   }
 
+  public static boolean OSSOnly(int availableStorageTypes) {
+    return availableStorageTypes == OSS_MASK;
+  }
+
   public boolean HDFSOnly() {
     return StorageInfo.HDFSOnly(availableStorageTypes);
   }

@@ -167,7 +167,9 @@ public abstract class PartitionDataWriter implements DeviceObserver {
           FlushTask task = null;
           if (channel != null) {
             task = new LocalFlushTask(flushBuffer, channel, notifier);
-          } else if (diskFileInfo.isHdfs()) {
+          } else if (diskFileInfo.isS3()) {
+            task = new S3FlushTask(flushBuffer, diskFileInfo.getDfsPath(), notifier);
+          } else {
             task = new HdfsFlushTask(flushBuffer, diskFileInfo.getDfsPath(), notifier);
           }
           addTask(task);
@@ -243,6 +245,8 @@ public abstract class PartitionDataWriter implements DeviceObserver {
     } else {
       if (deleted) {
         return null;
+      } else if (diskFileInfo.isS3()){
+        return new StorageInfo(StorageInfo.Type.OSS, true, diskFileInfo.getFilePath());
       } else {
         return new StorageInfo(StorageInfo.Type.HDFS, true, diskFileInfo.getFilePath());
       }

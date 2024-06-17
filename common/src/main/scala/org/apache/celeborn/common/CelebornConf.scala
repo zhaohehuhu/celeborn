@@ -1091,7 +1091,7 @@ class CelebornConf(loadDefaults: Boolean) extends Cloneable with Logging with Se
         (dir, maxCapacity, flushThread, diskType)
       }
     }.getOrElse {
-      if (!hasHDFSStorage) {
+      if (!hasHDFSStorage && !hasS3Storage) {
         val prefix = workerStorageBaseDirPrefix
         val number = workerStorageBaseDirNumber
         (1 to number).map { i =>
@@ -1126,14 +1126,14 @@ class CelebornConf(loadDefaults: Boolean) extends Cloneable with Logging with Se
       }
   }.getOrElse("")
 
-  def s3EndpointRegion: String = get(S3_ENDPOINT_REGION).map {
-    s3EndpointRegion =>
-      if (s3EndpointRegion.isEmpty) {
+  def s3Endpoint: String = get(S3_ENDPOINT).map {
+    s3Endpoint =>
+      if (s3Endpoint.isEmpty) {
         log.error(
-          s"${S3_ENDPOINT_REGION.key} configuration is wrong $s3EndpointRegion. Disable S3 support.")
+          s"${S3_ENDPOINT.key} configuration is wrong $s3Endpoint. Disable S3 support.")
         ""
       } else {
-        s3EndpointRegion
+        s3Endpoint
       }
   }.getOrElse("")
 
@@ -2750,8 +2750,8 @@ object CelebornConf extends Logging {
       .stringConf
       .createOptional
 
-  val S3_ENDPOINT_REGION: OptionalConfigEntry[String] =
-    buildConf("celeborn.storage.s3.endpoint.region")
+  val S3_ENDPOINT: OptionalConfigEntry[String] =
+    buildConf("celeborn.storage.s3.endpoint")
       .categories("worker", "master", "client")
       .version("0.2.0")
       .doc("S3 endpoint region for Celeborn to store shuffle data.")

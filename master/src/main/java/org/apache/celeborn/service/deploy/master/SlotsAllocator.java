@@ -60,6 +60,7 @@ public class SlotsAllocator {
           boolean shouldReplicate,
           boolean shouldRackAware,
           int availableStorageTypes) {
+    logger.error("availableStorageTypes is " + availableStorageTypes);
     if (partitionIds.isEmpty()) {
       return new HashMap<>();
     }
@@ -73,7 +74,7 @@ public class SlotsAllocator {
       for (Map.Entry<String, DiskInfo> diskInfoEntry : worker.diskInfos().entrySet()) {
         if (diskInfoEntry.getValue().status().equals(DiskStatus.HEALTHY)) {
           if (StorageInfo.localDiskAvailable(availableStorageTypes)
-              && diskInfoEntry.getValue().storageType() != StorageInfo.Type.HDFS) {
+              && diskInfoEntry.getValue().storageType() != StorageInfo.Type.HDFS && diskInfoEntry.getValue().storageType() != StorageInfo.Type.OSS) {
             usableDisks.add(
                 new UsableDiskInfo(
                     diskInfoEntry.getValue(), diskInfoEntry.getValue().availableSlots()));
@@ -82,8 +83,14 @@ public class SlotsAllocator {
             usableDisks.add(
                 new UsableDiskInfo(
                     diskInfoEntry.getValue(), diskInfoEntry.getValue().availableSlots()));
+          } else if (StorageInfo.OSSAvailable(availableStorageTypes)
+                  && diskInfoEntry.getValue().storageType() == StorageInfo.Type.OSS) {
+            usableDisks.add(
+                    new UsableDiskInfo(
+                            diskInfoEntry.getValue(), diskInfoEntry.getValue().availableSlots()));
           }
         }
+        logger.error("lookup diskInfoEntry from workers");
       }
     }
     return locateSlots(
@@ -123,6 +130,10 @@ public class SlotsAllocator {
       return offerSlotsRoundRobin(
           workers, partitionIds, shouldReplicate, shouldRackAware, availableStorageTypes);
     }
+    if (StorageInfo.OSSOnly(availableStorageTypes)) {
+      return offerSlotsRoundRobin(
+              workers, partitionIds, shouldReplicate, shouldRackAware, availableStorageTypes);
+    }
 
     List<DiskInfo> usableDisks = new ArrayList<>();
     Map<DiskInfo, WorkerInfo> diskToWorkerMap = new HashMap<>();
@@ -141,7 +152,8 @@ public class SlotsAllocator {
                                       ? Option.empty()
                                       : Option.apply(diskReserveRatio.get()))
                           && diskInfo.status().equals(DiskStatus.HEALTHY)
-                          && diskInfo.storageType() != StorageInfo.Type.HDFS) {
+                          && diskInfo.storageType() != StorageInfo.Type.HDFS
+                          && diskInfo.storageType() != StorageInfo.Type.OSS) {
                         usableDisks.add(diskInfo);
                       }
                     }));
@@ -186,10 +198,12 @@ public class SlotsAllocator {
       Map<WorkerInfo, List<UsableDiskInfo>> restrictions,
       Map<WorkerInfo, Integer> workerDiskIndex,
       int availableStorageTypes) {
+    logger.error("start to getStorageInfo" );
     WorkerInfo selectedWorker = workers.get(workerIndex);
     StorageInfo storageInfo;
     int diskIndex = workerDiskIndex.computeIfAbsent(selectedWorker, v -> 0);
     if (restrictions != null) {
+      logger.error("restrictions is not null in StorageInfo");
       List<UsableDiskInfo> usableDiskInfos = restrictions.get(selectedWorker);
       while (usableDiskInfos.get(diskIndex).usableSlots <= 0) {
         diskIndex = (diskIndex + 1) % usableDiskInfos.size();
@@ -198,6 +212,8 @@ public class SlotsAllocator {
       DiskInfo selectedDiskInfo = usableDiskInfos.get(diskIndex).diskInfo;
       if (selectedDiskInfo.storageType() == StorageInfo.Type.HDFS) {
         storageInfo = new StorageInfo("", StorageInfo.Type.HDFS, availableStorageTypes);
+      } else if (selectedDiskInfo.storageType() == StorageInfo.Type.OSS) {
+        storageInfo = new StorageInfo("", StorageInfo.Type.OSS, availableStorageTypes);
       } else {
         storageInfo =
             new StorageInfo(
@@ -208,9 +224,11 @@ public class SlotsAllocator {
       }
     } else {
       if (StorageInfo.localDiskAvailable(availableStorageTypes)) {
+        logger.error("local disk is available");
         DiskInfo[] diskInfos =
             selectedWorker.diskInfos().values().stream()
                 .filter(p -> p.storageType() != StorageInfo.Type.HDFS)
+                .filter(p -> p.storageType() != StorageInfo.Type.OSS)
                 .collect(Collectors.toList())
                 .toArray(new DiskInfo[0]);
         storageInfo =
@@ -219,7 +237,11 @@ public class SlotsAllocator {
                 diskInfos[diskIndex].storageType(),
                 availableStorageTypes);
         workerDiskIndex.put(selectedWorker, (diskIndex + 1) % diskInfos.length);
+      } else if (StorageInfo.OSSAvailable(availableStorageTypes)) {
+        logger.error(StorageInfo.OSSAvailable(availableStorageTypes)  + " is available");
+        storageInfo = new StorageInfo("", StorageInfo.Type.OSS, availableStorageTypes);
       } else {
+        logger.error("HDFS is available");
         storageInfo = new StorageInfo("", StorageInfo.Type.HDFS, availableStorageTypes);
       }
     }
@@ -250,7 +272,7 @@ public class SlotsAllocator {
 
     Map<WorkerInfo, Tuple2<List<PartitionLocation>, List<PartitionLocation>>> slots =
         new HashMap<>();
-
+    logger.error("start to get the number of remain");
     List<Integer> remain =
         roundRobin(
             slots,
@@ -261,6 +283,7 @@ public class SlotsAllocator {
             shouldRackAware,
             availableStorageTypes);
     if (!remain.isEmpty()) {
+      logger.error("remain is not empty 01");
       remain =
           roundRobin(
               slots,
@@ -272,6 +295,7 @@ public class SlotsAllocator {
               availableStorageTypes);
     }
     if (!remain.isEmpty()) {
+      logger.error("remain is not empty 03");
       roundRobin(slots, remain, workers, null, shouldReplicate, false, availableStorageTypes);
     }
     return slots;
@@ -336,20 +360,24 @@ public class SlotsAllocator {
 
     final int workerSize = workers.size();
     final IntUnaryOperator incrementIndex = v -> (v + 1) % workerSize;
+    logger.error("workerSize is " + workerSize);
     int primaryIndex = rand.nextInt(workerSize);
+    logger.error("primaryIndex is " + primaryIndex);
     int replicaIndex = rand.nextInt(workerSize);
-
+    logger.error("replicaIndex is " + replicaIndex);
     Iterator<Integer> iter = partitionIdList.iterator();
     outer:
     while (iter.hasNext()) {
       int nextPrimaryInd = primaryIndex;
 
       int partitionId = iter.next();
+      logger.error("partitionId is " + partitionId);
       StorageInfo storageInfo;
       if (slotsRestrictions != null && !slotsRestrictions.isEmpty()) {
         // this means that we'll select a mount point
         while (!haveUsableSlots(slotsRestrictions, workers, nextPrimaryInd)) {
           nextPrimaryInd = incrementIndex.applyAsInt(nextPrimaryInd);
+          logger.error("nextPrimaryInd is " + nextPrimaryInd + " primaryIndex is " + primaryIndex);
           if (nextPrimaryInd == primaryIndex) {
             break outer;
           }
@@ -361,10 +389,14 @@ public class SlotsAllocator {
                 slotsRestrictions,
                 workerDiskIndexForPrimary,
                 availableStorageTypes);
+        logger.error("slotsRestrictions has restrictions");
       } else {
+        logger.error("slotsRestrictions is null");
         if (StorageInfo.localDiskAvailable(availableStorageTypes)) {
+          logger.error("has local disk");
           while (!workers.get(nextPrimaryInd).haveDisk()) {
             nextPrimaryInd = incrementIndex.applyAsInt(nextPrimaryInd);
+            logger.error("nextPrimaryInd is " + nextPrimaryInd + " primaryIndex is " + primaryIndex);
             if (nextPrimaryInd == primaryIndex) {
               break outer;
             }
@@ -376,7 +408,7 @@ public class SlotsAllocator {
       }
       PartitionLocation primaryPartition =
           createLocation(partitionId, workers.get(nextPrimaryInd), null, storageInfo, true);
-
+      logger.error("primaryPartition is " + primaryPartition);
       if (shouldReplicate) {
         int nextReplicaInd = replicaIndex;
         if (slotsRestrictions != null) {
@@ -384,6 +416,7 @@ public class SlotsAllocator {
               || !haveUsableSlots(slotsRestrictions, workers, nextReplicaInd)
               || !satisfyRackAware(shouldRackAware, workers, nextPrimaryInd, nextReplicaInd)) {
             nextReplicaInd = incrementIndex.applyAsInt(nextReplicaInd);
+            logger.error("nextReplicaInd is " + nextReplicaInd);
             if (nextReplicaInd == replicaIndex) {
               break outer;
             }
@@ -396,6 +429,7 @@ public class SlotsAllocator {
                   workerDiskIndexForReplica,
                   availableStorageTypes);
         } else if (shouldRackAware) {
+          logger.error("shouldRackAware is " + shouldRackAware);
           while (nextReplicaInd == nextPrimaryInd
               || !satisfyRackAware(true, workers, nextPrimaryInd, nextReplicaInd)) {
             nextReplicaInd = incrementIndex.applyAsInt(nextReplicaInd);
@@ -407,6 +441,7 @@ public class SlotsAllocator {
           if (StorageInfo.localDiskAvailable(availableStorageTypes)) {
             while (nextReplicaInd == nextPrimaryInd || !workers.get(nextReplicaInd).haveDisk()) {
               nextReplicaInd = incrementIndex.applyAsInt(nextReplicaInd);
+              logger.error("nextReplicaInd is " + nextReplicaInd);
               if (nextReplicaInd == replicaIndex) {
                 break outer;
               }
@@ -614,6 +649,7 @@ public class SlotsAllocator {
       PartitionLocation peer,
       StorageInfo storageInfo,
       boolean isPrimary) {
+    logger.error("start to createLocation");
     return new PartitionLocation(
         partitionIndex,
         0,

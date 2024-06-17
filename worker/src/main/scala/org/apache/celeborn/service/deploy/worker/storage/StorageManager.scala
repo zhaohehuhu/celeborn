@@ -153,7 +153,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
         StorageManager.hadoopFs = CelebornHadoopUtils.getHadoopFS(conf)
       } catch {
         case e: Exception =>
-          logError("Celeborn initialize HDFS failed.", e)
+          logError("Celeborn initialize DFS failed.", e)
           throw e
       }
       (
@@ -359,7 +359,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
       rangeReadFilter: Boolean,
       userIdentifier: UserIdentifier,
       partitionSplitEnabled: Boolean): PartitionDataWriter = {
-    if (healthyWorkingDirs().size <= 0 && !hasHDFSStorage) {
+    if (healthyWorkingDirs().size <= 0 && !hasHDFSStorage && !hasS3Storage) {
       throw new IOException("No available working dirs!")
     }
     val shuffleKey = Utils.makeShuffleKey(appId, shuffleId)
@@ -491,12 +491,12 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
       logInfo(s"Cleanup expired shuffle $shuffleKey.")
       if (diskFileInfos.containsKey(shuffleKey)) {
         val removedFileInfos = diskFileInfos.remove(shuffleKey)
-        var isHdfsExpired = false
+        var isDfsExpired = false
         if (removedFileInfos != null) {
           removedFileInfos.asScala.foreach {
             case (_, fileInfo) =>
               if (cleanFileInternal(shuffleKey, fileInfo)) {
-                isHdfsExpired = true
+                isDfsExpired = true
               }
           }
         }
@@ -509,10 +509,11 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
             deleteDirectory(file, diskOperators.get(diskInfo.mountPoint))
           }
         }
-        if (isHdfsExpired) {
+        if (isDfsExpired) {
           try {
+            val dir = if (hasHDFSStorage) hdfsDir else s3Dir
             StorageManager.hadoopFs.delete(
-              new Path(new Path(hdfsDir, conf.workerWorkingDir), s"$appId/$shuffleId"),
+              new Path(new Path(dir, conf.workerWorkingDir), s"$appId/$shuffleId"),
               true)
           } catch {
             case e: Exception => logWarning("Clean expired HDFS shuffle failed.", e)
@@ -840,7 +841,22 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
           fileName,
           hdfsFileInfo)
         return (dfsFlusher.get, hdfsFileInfo, null)
-      } else if (dirs.nonEmpty && location.getStorageInfo.localDiskAvailable()) {
+      } else if (dirs.isEmpty && location.getStorageInfo.OSSAvailable()) {
+        val shuffleDir =
+          new Path(new Path(s3Dir, conf.workerWorkingDir), s"$appId/$shuffleId")
+        FileSystem.mkdirs(StorageManager.hadoopFs, shuffleDir, hdfsPermission)
+        val s3FilePath = new Path(shuffleDir, fileName).toString
+        val s3FileInfo = new DiskFileInfo(
+          userIdentifier,
+          partitionSplitEnabled,
+          new ReduceFileMeta(),
+          s3FilePath,
+          StorageInfo.Type.OSS)
+        diskFileInfos.computeIfAbsent(shuffleKey, diskFileInfoMapFunc).put(
+          fileName,
+          s3FileInfo)
+        return (dfsFlusher.get, s3FileInfo, null)
+      }  else if (dirs.nonEmpty && location.getStorageInfo.localDiskAvailable()) {
         val dir = dirs(getNextIndex() % dirs.size)
         val mountPoint = DeviceInfo.getMountPoint(dir.getAbsolutePath, mountPoints)
         val shuffleDir = new File(dir, s"$appId/$shuffleId")
