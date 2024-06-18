@@ -267,13 +267,7 @@ class FetchHandler(
             meta.getNumChunks,
             meta.getChunkOffsets,
             fileInfo.getFilePath)
-        } else if (fileInfo.isHdfs) {
-          chunkStreamManager.registerStream(
-            streamId,
-            shuffleKey,
-            fileName)
-          makeStreamHandler(streamId, numChunks = 0)
-        } else if (fileInfo.isS3) {
+        } else if (fileInfo.isDFS) {
           chunkStreamManager.registerStream(
             streamId,
             shuffleKey,

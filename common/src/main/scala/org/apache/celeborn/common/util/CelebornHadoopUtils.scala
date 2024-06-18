@@ -50,7 +50,9 @@ object CelebornHadoopUtils extends Logging {
       hadoopConf.set("fs.s3a.access.key", conf.s3AccessKey)
       hadoopConf.set("fs.s3a.secret.key", conf.s3SecretKey)
       hadoopConf.set("fs.s3a.endpoint", conf.s3Endpoint)
-      hadoopConf.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
+      hadoopConf.set(
+        "fs.s3a.aws.credentials.provider",
+        "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
     }
     appendSparkHadoopConfigs(conf, hadoopConf)
     hadoopConf

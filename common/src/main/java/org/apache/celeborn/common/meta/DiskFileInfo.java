@@ -153,17 +153,17 @@ public class DiskFileInfo extends FileInfo {
     return new Path(Utils.getWriteSuccessFilePath(Utils.getPeerPath(filePath)));
   }
 
-  public void deleteAllFiles(FileSystem hdfsFs) {
-    if (isHdfs()) {
+  public void deleteAllFiles(FileSystem dfsFs) {
+    if (isDFS()) {
       try {
-        hdfsFs.delete(getDfsPath(), false);
-        hdfsFs.delete(getDfsWriterSuccessPath(), false);
-        hdfsFs.delete(getDfsIndexPath(), false);
-        hdfsFs.delete(getDfsSortedPath(), false);
+        dfsFs.delete(getDfsPath(), false);
+        dfsFs.delete(getDfsWriterSuccessPath(), false);
+        dfsFs.delete(getDfsIndexPath(), false);
+        dfsFs.delete(getDfsSortedPath(), false);
       } catch (Exception e) {
         // ignore delete exceptions because some other workers might be deleting the directory
         logger.debug(
-            "delete HDFS file {},{},{},{} failed {}",
+            "delete DFS file {},{},{},{} failed {}",
             getDfsPath(),
             getDfsWriterSuccessPath(),
             getDfsIndexPath(),
@@ -195,5 +195,9 @@ public class DiskFileInfo extends FileInfo {
 
   public boolean isS3() {
     return Utils.isS3Path(filePath);
+  }
+
+  public boolean isDFS() {
+    return Utils.isS3Path(filePath) || Utils.isHdfsPath(filePath);
   }
 }

@@ -28,6 +28,8 @@ case class ResourceConsumption(
     diskFileCount: Long,
     hdfsBytesWritten: Long,
     hdfsFileCount: Long,
+    s3BytesWritten: Long,
+    s3FileCount: Long,
     var subResourceConsumptions: util.Map[String, ResourceConsumption] = null) {
 
   def add(other: ResourceConsumption): ResourceConsumption = {
@@ -35,7 +37,9 @@ case class ResourceConsumption(
       diskBytesWritten + other.diskBytesWritten,
       diskFileCount + other.diskFileCount,
       hdfsBytesWritten + other.hdfsBytesWritten,
-      hdfsFileCount + other.hdfsFileCount)
+      hdfsFileCount + other.hdfsFileCount,
+      s3BytesWritten + other.s3BytesWritten,
+      s3FileCount + other.s3FileCount)
   }
 
   def addSubResourceConsumptions(otherSubResourceConsumptions: Map[
@@ -75,6 +79,8 @@ case class ResourceConsumption(
       s" diskFileCount: $diskFileCount," +
       s" hdfsBytesWritten: ${Utils.bytesToString(hdfsBytesWritten)}," +
       s" hdfsFileCount: $hdfsFileCount," +
+      s" s3BytesWritten: ${Utils.bytesToString(s3BytesWritten)}," +
+      s" s3FileCount: $s3FileCount," +
       s" subResourceConsumptions: $subResourceConsumptionString)"
   }
 }

@@ -74,7 +74,8 @@ public class SlotsAllocator {
       for (Map.Entry<String, DiskInfo> diskInfoEntry : worker.diskInfos().entrySet()) {
         if (diskInfoEntry.getValue().status().equals(DiskStatus.HEALTHY)) {
           if (StorageInfo.localDiskAvailable(availableStorageTypes)
-              && diskInfoEntry.getValue().storageType() != StorageInfo.Type.HDFS && diskInfoEntry.getValue().storageType() != StorageInfo.Type.OSS) {
+              && diskInfoEntry.getValue().storageType() != StorageInfo.Type.HDFS
+              && diskInfoEntry.getValue().storageType() != StorageInfo.Type.OSS) {
             usableDisks.add(
                 new UsableDiskInfo(
                     diskInfoEntry.getValue(), diskInfoEntry.getValue().availableSlots()));
@@ -84,10 +85,10 @@ public class SlotsAllocator {
                 new UsableDiskInfo(
                     diskInfoEntry.getValue(), diskInfoEntry.getValue().availableSlots()));
           } else if (StorageInfo.OSSAvailable(availableStorageTypes)
-                  && diskInfoEntry.getValue().storageType() == StorageInfo.Type.OSS) {
+              && diskInfoEntry.getValue().storageType() == StorageInfo.Type.OSS) {
             usableDisks.add(
-                    new UsableDiskInfo(
-                            diskInfoEntry.getValue(), diskInfoEntry.getValue().availableSlots()));
+                new UsableDiskInfo(
+                    diskInfoEntry.getValue(), diskInfoEntry.getValue().availableSlots()));
           }
         }
         logger.error("lookup diskInfoEntry from workers");
@@ -132,7 +133,7 @@ public class SlotsAllocator {
     }
     if (StorageInfo.OSSOnly(availableStorageTypes)) {
       return offerSlotsRoundRobin(
-              workers, partitionIds, shouldReplicate, shouldRackAware, availableStorageTypes);
+          workers, partitionIds, shouldReplicate, shouldRackAware, availableStorageTypes);
     }
 
     List<DiskInfo> usableDisks = new ArrayList<>();
@@ -198,7 +199,7 @@ public class SlotsAllocator {
       Map<WorkerInfo, List<UsableDiskInfo>> restrictions,
       Map<WorkerInfo, Integer> workerDiskIndex,
       int availableStorageTypes) {
-    logger.error("start to getStorageInfo" );
+    logger.error("start to getStorageInfo");
     WorkerInfo selectedWorker = workers.get(workerIndex);
     StorageInfo storageInfo;
     int diskIndex = workerDiskIndex.computeIfAbsent(selectedWorker, v -> 0);
@@ -238,7 +239,7 @@ public class SlotsAllocator {
                 availableStorageTypes);
         workerDiskIndex.put(selectedWorker, (diskIndex + 1) % diskInfos.length);
       } else if (StorageInfo.OSSAvailable(availableStorageTypes)) {
-        logger.error(StorageInfo.OSSAvailable(availableStorageTypes)  + " is available");
+        logger.error(StorageInfo.OSSAvailable(availableStorageTypes) + " is available");
         storageInfo = new StorageInfo("", StorageInfo.Type.OSS, availableStorageTypes);
       } else {
         logger.error("HDFS is available");
@@ -396,7 +397,8 @@ public class SlotsAllocator {
           logger.error("has local disk");
           while (!workers.get(nextPrimaryInd).haveDisk()) {
             nextPrimaryInd = incrementIndex.applyAsInt(nextPrimaryInd);
-            logger.error("nextPrimaryInd is " + nextPrimaryInd + " primaryIndex is " + primaryIndex);
+            logger.error(
+                "nextPrimaryInd is " + nextPrimaryInd + " primaryIndex is " + primaryIndex);
             if (nextPrimaryInd == primaryIndex) {
               break outer;
             }

@@ -431,7 +431,6 @@ private[celeborn] class Worker(
       workerInfo.updateThenGetDiskInfos(storageManager.disksSnapshot().map { disk =>
         disk.mountPoint -> disk
       }.toMap.asJava).values().asScala.toSeq ++ storageManager.dfsDiskInfo
-    logError("storage type is " + diskInfos.map(_.storageType).mkString(", "))
     workerStatusManager.checkIfNeedTransitionStatus()
     val response = masterClient.askSync[HeartbeatFromWorkerResponse](
       HeartbeatFromWorker(
@@ -662,6 +661,16 @@ private[celeborn] class Worker(
       resourceConsumptionLabel) { () =>
       computeResourceConsumption(userIdentifier, applicationId).hdfsBytesWritten
     }
+    resourceConsumptionSource.addGauge(
+      ResourceConsumptionSource.S3_FILE_COUNT,
+      resourceConsumptionLabel) { () =>
+      computeResourceConsumption(userIdentifier, applicationId).s3FileCount
+    }
+    resourceConsumptionSource.addGauge(
+      ResourceConsumptionSource.S3_BYTES_WRITTEN,
+      resourceConsumptionLabel) { () =>
+      computeResourceConsumption(userIdentifier, applicationId).s3BytesWritten
+    }
   }
 
   private def computeResourceConsumption(
@@ -670,12 +679,12 @@ private[celeborn] class Worker(
     var resourceConsumption =
       workerInfo.userResourceConsumption.getOrDefault(
         userIdentifier,
-        ResourceConsumption(0, 0, 0, 0))
+        ResourceConsumption(0, 0, 0, 0, 0, 0))
     if (applicationId != null) {
       val subResourceConsumptions = resourceConsumption.subResourceConsumptions
       if (CollectionUtils.isNotEmpty(subResourceConsumptions)) {
         resourceConsumption =
-          subResourceConsumptions.getOrDefault(applicationId, ResourceConsumption(0, 0, 0, 0))
+          subResourceConsumptions.getOrDefault(applicationId, ResourceConsumption(0, 0, 0, 0, 0, 0))
       }
     }
     resourceConsumption
@@ -720,6 +729,12 @@ private[celeborn] class Worker(
       applicationId)
     removeResourceConsumptionGauge(
       ResourceConsumptionSource.HDFS_BYTES_WRITTEN,
+      applicationId)
+    removeResourceConsumptionGauge(
+      ResourceConsumptionSource.S3_FILE_COUNT,
+      applicationId)
+    removeResourceConsumptionGauge(
+      ResourceConsumptionSource.S3_BYTES_WRITTEN,
       applicationId)
   }
 

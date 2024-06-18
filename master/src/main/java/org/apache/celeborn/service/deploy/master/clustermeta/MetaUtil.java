@@ -101,6 +101,8 @@ public class MetaUtil {
         pbResourceConsumption.getDiskFileCount(),
         pbResourceConsumption.getHdfsBytesWritten(),
         pbResourceConsumption.getHdfsFileCount(),
+        pbResourceConsumption.getS3BytesWritten(),
+        pbResourceConsumption.getS3FileCount(),
         fromPbSubResourceConsumptions(pbResourceConsumption.getSubResourceConsumptionMap()));
   }
 
@@ -111,6 +113,8 @@ public class MetaUtil {
         .setDiskFileCount(resourceConsumption.diskFileCount())
         .setHdfsBytesWritten(resourceConsumption.hdfsBytesWritten())
         .setHdfsFileCount(resourceConsumption.hdfsFileCount())
+        .setS3BytesWritten(resourceConsumption.s3BytesWritten())
+        .setS3FileCount(resourceConsumption.s3FileCount())
         .putAllSubResourceConsumption(
             toPbSubResourceConsumptions(resourceConsumption.subResourceConsumptions()))
         .build();

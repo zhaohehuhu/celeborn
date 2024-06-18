@@ -142,8 +142,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
   val hdfsDir = conf.hdfsDir
   val s3Dir = conf.s3Dir
   val hdfsPermission = new FsPermission("755")
-  val hdfsWriters = JavaUtils.newConcurrentHashMap[String, PartitionDataWriter]()
-  val s3Writers = JavaUtils.newConcurrentHashMap[String, PartitionDataWriter]()
+  val dfsWriters = JavaUtils.newConcurrentHashMap[String, PartitionDataWriter]()
 
   val (dfsFlusher, _totalDfsFlusherThread) =
     if (hasHDFSStorage || hasS3Storage) {
@@ -156,13 +155,23 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
           logError("Celeborn initialize DFS failed.", e)
           throw e
       }
-      (
-        Some(new HdfsFlusher(
-          workerSource,
-          conf.workerHdfsFlusherThreads,
-          byteBufAllocator,
-          conf.workerPushMaxComponents)),
-        conf.workerHdfsFlusherThreads)
+      if (hasHDFSStorage) {
+        (
+          Some(new HdfsFlusher(
+            workerSource,
+            conf.workerHdfsFlusherThreads,
+            byteBufAllocator,
+            conf.workerPushMaxComponents)),
+          conf.workerHdfsFlusherThreads)
+      } else {
+        (
+          Some(new S3Flusher(
+            workerSource,
+            conf.workerS3FlusherThreads,
+            byteBufAllocator,
+            conf.workerPushMaxComponents)),
+          conf.workerS3FlusherThreads)
+      }
     } else {
       (None, 0)
     }
@@ -409,7 +418,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
         diskFileInfo.getFilePath,
         writer)
     } else {
-      hdfsWriters.put(diskFileInfo.getFilePath, writer)
+      dfsWriters.put(diskFileInfo.getFilePath, writer)
     }
     writer
   }
@@ -458,14 +467,14 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
   }
 
   def cleanFileInternal(shuffleKey: String, fileInfo: DiskFileInfo): Boolean = {
-    var isHdfsExpired = false
-    if (fileInfo.isHdfs) {
-      isHdfsExpired = true
-      val hdfsFileWriter = hdfsWriters.get(fileInfo.getFilePath)
-      if (hdfsFileWriter != null) {
-        hdfsFileWriter.destroy(new IOException(
-          s"Destroy FileWriter $hdfsFileWriter caused by shuffle $shuffleKey expired."))
-        hdfsWriters.remove(fileInfo.getFilePath)
+    var isDfsExpired = false
+    if (fileInfo.isHdfs || fileInfo.isS3) {
+      isDfsExpired = true
+      val dfsFileWriter = dfsWriters.get(fileInfo.getFilePath)
+      if (dfsFileWriter != null) {
+        dfsFileWriter.destroy(new IOException(
+          s"Destroy FileWriter $dfsFileWriter caused by shuffle $shuffleKey expired."))
+        dfsWriters.remove(fileInfo.getFilePath)
       }
     } else {
       val workingDir =
@@ -481,7 +490,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
       }
     }
 
-    isHdfsExpired
+    isDfsExpired
   }
 
   def cleanupExpiredShuffleKey(
@@ -609,11 +618,11 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
           }
         }
 
-      val hdfsCleaned = hadoopFs match {
+      val dfsCleaned = hadoopFs match {
         case dfs: FileSystem =>
           val dir = if (hasHDFSStorage) hdfsDir else s3Dir
           val dfsWorkPath = new Path(dir, conf.workerWorkingDir)
-          // HDFS path not exist when first time initialize
+          // DFS path not exist when first time initialize
           if (dfs.exists(dfsWorkPath)) {
             !dfs.listFiles(dfsWorkPath, false).hasNext
           } else {
@@ -623,7 +632,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
           true
       }
 
-      if (localCleaned && hdfsCleaned) {
+      if (localCleaned && dfsCleaned) {
         return true
       }
       retryTimes += 1
@@ -696,7 +705,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
         })
       }
     })
-    hdfsWriters.forEach(new BiConsumer[String, PartitionDataWriter] {
+    dfsWriters.forEach(new BiConsumer[String, PartitionDataWriter] {
       override def accept(t: String, u: PartitionDataWriter): Unit = {
         u.flushOnMemoryPressure()
       }
@@ -775,13 +784,16 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
       fileInfos: List[DiskFileInfo],
       subResourceConsumptions: util.Map[String, ResourceConsumption] = null)
       : ResourceConsumption = {
-    val diskFileInfos = fileInfos.filter(!_.isHdfs)
+    val diskFileInfos = fileInfos.filter(!_.isHdfs).filter(!_.isS3)
     val hdfsFileInfos = fileInfos.filter(_.isHdfs)
+    val s3FileInfos = fileInfos.filter(_.isS3)
     ResourceConsumption(
       diskFileInfos.map(_.getFileLength).sum,
       diskFileInfos.size,
       hdfsFileInfos.map(_.getFileLength).sum,
       hdfsFileInfos.size,
+      s3FileInfos.map(_.getFileLength).sum,
+      s3FileInfos.size,
       subResourceConsumptions)
   }
 
@@ -842,6 +854,9 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
           hdfsFileInfo)
         return (dfsFlusher.get, hdfsFileInfo, null)
       } else if (dirs.isEmpty && location.getStorageInfo.OSSAvailable()) {
+        if (!hasS3Storage) {
+          throw new IOException(s"No OSS S3 storage available for location:$location")
+        }
         val shuffleDir =
           new Path(new Path(s3Dir, conf.workerWorkingDir), s"$appId/$shuffleId")
         FileSystem.mkdirs(StorageManager.hadoopFs, shuffleDir, hdfsPermission)
@@ -856,7 +871,7 @@ final private[worker] class StorageManager(conf: CelebornConf, workerSource: Abs
           fileName,
           s3FileInfo)
         return (dfsFlusher.get, s3FileInfo, null)
-      }  else if (dirs.nonEmpty && location.getStorageInfo.localDiskAvailable()) {
+      } else if (dirs.nonEmpty && location.getStorageInfo.localDiskAvailable()) {
         val dir = dirs(getNextIndex() % dirs.size)
         val mountPoint = DeviceInfo.getMountPoint(dir.getAbsolutePath, mountPoints)
         val shuffleDir = new File(dir, s"$appId/$shuffleId")

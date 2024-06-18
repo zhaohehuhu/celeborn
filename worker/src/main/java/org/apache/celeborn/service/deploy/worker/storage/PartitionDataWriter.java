@@ -245,7 +245,7 @@ public abstract class PartitionDataWriter implements DeviceObserver {
     } else {
       if (deleted) {
         return null;
-      } else if (diskFileInfo.isS3()){
+      } else if (diskFileInfo.isS3()) {
         return new StorageInfo(StorageInfo.Type.OSS, true, diskFileInfo.getFilePath());
       } else {
         return new StorageInfo(StorageInfo.Type.HDFS, true, diskFileInfo.getFilePath());

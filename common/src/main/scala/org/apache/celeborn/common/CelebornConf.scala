@@ -884,6 +884,7 @@ class CelebornConf(loadDefaults: Boolean) extends Cloneable with Logging with Se
   def clientCommitFilesIgnoreExcludedWorkers: Boolean = get(CLIENT_COMMIT_IGNORE_EXCLUDED_WORKERS)
   def appHeartbeatTimeoutMs: Long = get(APPLICATION_HEARTBEAT_TIMEOUT)
   def hdfsExpireDirsTimeoutMS: Long = get(HDFS_EXPIRE_DIRS_TIMEOUT)
+  def s3ExpireDirsTimeoutMS: Long = get(S3_EXPIRE_DIRS_TIMEOUT)
   def appHeartbeatIntervalMs: Long = get(APPLICATION_HEARTBEAT_INTERVAL)
   def applicationUnregisterEnabled: Boolean = get(APPLICATION_UNREGISTER_ENABLED)
 
@@ -1209,6 +1210,8 @@ class CelebornConf(loadDefaults: Boolean) extends Cloneable with Logging with Se
   def workerHddFlusherThreads: Int = get(WORKER_FLUSHER_HDD_THREADS)
   def workerSsdFlusherThreads: Int = get(WORKER_FLUSHER_SSD_THREADS)
   def workerHdfsFlusherThreads: Int = get(WORKER_FLUSHER_HDFS_THREADS)
+  def workerS3FlusherThreads: Int = get(WORKER_FLUSHER_S3_THREADS)
+
   def workerCreateWriterMaxAttempts: Int = get(WORKER_WRITER_CREATE_MAX_ATTEMPTS)
 
   // //////////////////////////////////////////////////////
@@ -2154,6 +2157,14 @@ object CelebornConf extends Logging {
       .timeConf(TimeUnit.MILLISECONDS)
       .createWithDefaultString("1h")
 
+  val S3_EXPIRE_DIRS_TIMEOUT: ConfigEntry[Long] =
+    buildConf("celeborn.master.s3.expireDirs.timeout")
+      .categories("master")
+      .version("0.3.0")
+      .doc("The timeout for a expire dirs to be deleted on S3.")
+      .timeConf(TimeUnit.MILLISECONDS)
+      .createWithDefaultString("1h")
+
   val WORKER_HEARTBEAT_TIMEOUT: ConfigEntry[Long] =
     buildConf("celeborn.master.heartbeat.worker.timeout")
       .withAlternative("celeborn.worker.heartbeat.timeout")
@@ -3088,6 +3099,14 @@ object CelebornConf extends Logging {
     buildConf("celeborn.worker.flusher.hdfs.threads")
       .categories("worker")
       .doc("Flusher's thread count used for write data to HDFS.")
+      .version("0.2.0")
+      .intConf
+      .createWithDefault(8)
+
+  val WORKER_FLUSHER_S3_THREADS: ConfigEntry[Int] =
+    buildConf("celeborn.worker.flusher.s3.threads")
+      .categories("worker")
+      .doc("Flusher's thread count used for write data to S3.")
       .version("0.2.0")
       .intConf
       .createWithDefault(8)

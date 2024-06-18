@@ -103,7 +103,7 @@ public final class ReducePartitionDataWriter extends PartitionDataWriter {
           }
         },
         () -> {
-          if (diskFileInfo.isHdfs()) {
+          if (diskFileInfo.isDFS()) {
             if (StorageManager.hadoopFs().exists(diskFileInfo.getDfsPeerWriterSuccessPath())) {
               StorageManager.hadoopFs().delete(diskFileInfo.getDfsPath(), false);
               deleted = true;

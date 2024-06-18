@@ -18,10 +18,12 @@
 package org.apache.celeborn.service.deploy.worker.storage
 
 import java.nio.channels.FileChannel
+
 import io.netty.buffer.{ByteBufUtil, CompositeByteBuf}
-import org.apache.celeborn.service.deploy.worker.storage.StorageManager.hadoopFs
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.IOUtils
+
+import org.apache.celeborn.service.deploy.worker.storage.StorageManager.hadoopFs
 
 abstract private[worker] class FlushTask(
     val buffer: CompositeByteBuf,
@@ -85,4 +87,3 @@ private[worker] class S3FlushTask(
     }
   }
 }
-

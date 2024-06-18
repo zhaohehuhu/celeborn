@@ -77,13 +77,15 @@ class PbSerDeUtilsTest extends CelebornFunSuite {
   fileInfoMap.put("file2", fileInfo2)
   val cache = JavaUtils.newConcurrentHashMap[String, UserIdentifier]()
 
-  val resourceConsumption1 = ResourceConsumption(1000, 2000, 3000, 4000)
+  val resourceConsumption1 = ResourceConsumption(1000, 2000, 3000, 4000, 5000, 6000)
   val resourceConsumption2 = ResourceConsumption(
     2000,
     4000,
     6000,
     8000,
-    Map("appld2" -> ResourceConsumption(2000, 4000, 6000, 8000)).asJava)
+    100000,
+    120000,
+    Map("appld2" -> ResourceConsumption(2000, 4000, 6000, 8000, 100000, 12000)).asJava)
   val userResourceConsumption = new util.HashMap[UserIdentifier, ResourceConsumption]()
   userResourceConsumption.put(userIdentifier1, resourceConsumption1)
   userResourceConsumption.put(userIdentifier2, resourceConsumption2)

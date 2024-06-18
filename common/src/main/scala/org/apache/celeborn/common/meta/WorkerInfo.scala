@@ -229,7 +229,7 @@ class WorkerInfo(
     ResourceConsumption]): util.Map[UserIdentifier, ResourceConsumption] = {
     userResourceConsumption.keys().asScala.filterNot(resourceConsumptions.containsKey).foreach {
       identifier =>
-        userResourceConsumption.put(identifier, ResourceConsumption(0, 0, 0, 0))
+        userResourceConsumption.put(identifier, ResourceConsumption(0, 0, 0, 0, 0, 0))
     }
     userResourceConsumption.putAll(resourceConsumptions)
     userResourceConsumption

@@ -208,7 +208,9 @@ message ResourceConsumption {
   required int64 diskFileCount = 2;
   required int64 hdfsBytesWritten = 3;
   required int64 hdfsFileCount = 4;
-  map<string, ResourceConsumption> subResourceConsumption = 5;
+  required int64 s3BytesWritten = 5;
+  required int64 s3FileCount = 6;
+  map<string, ResourceConsumption> subResourceConsumption = 7;
 }
 
 enum Status {

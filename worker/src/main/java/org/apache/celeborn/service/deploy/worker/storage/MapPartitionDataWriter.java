@@ -138,7 +138,7 @@ public final class MapPartitionDataWriter extends PartitionDataWriter {
           flushIndex();
         },
         () -> {
-          if (diskFileInfo.isHdfs() || diskFileInfo.isS3()) {
+          if (diskFileInfo.isDFS()) {
             if (StorageManager.hadoopFs().exists(diskFileInfo.getDfsPeerWriterSuccessPath())) {
               StorageManager.hadoopFs().delete(diskFileInfo.getDfsPath(), false);
               deleted = true;
@@ -151,7 +151,7 @@ public final class MapPartitionDataWriter extends PartitionDataWriter {
           if (indexChannel != null) {
             indexChannel.close();
           }
-          if (diskFileInfo.isHdfs() || diskFileInfo.isS3()) {
+          if (diskFileInfo.isDFS()) {
             if (StorageManager.hadoopFs()
                 .exists(
                     new Path(
@@ -273,7 +273,7 @@ public final class MapPartitionDataWriter extends PartitionDataWriter {
             while (indexBuffer.hasRemaining()) {
               indexChannel.write(indexBuffer);
             }
-          } else if (diskFileInfo.isHdfs()) {
+          } else if (diskFileInfo.isDFS()) {
             FSDataOutputStream hdfsStream =
                 StorageManager.hadoopFs().append(diskFileInfo.getDfsIndexPath());
             hdfsStream.write(indexBuffer.array());

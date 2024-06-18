@@ -77,7 +77,9 @@ class WorkerInfoSuite extends CelebornFunSuite {
     disks.put("disk3", new DiskInfo("disk3", Int.MaxValue, 1, 1, 0))
     val userResourceConsumption =
       JavaUtils.newConcurrentHashMap[UserIdentifier, ResourceConsumption]()
-    userResourceConsumption.put(UserIdentifier("tenant1", "name1"), ResourceConsumption(1, 1, 1, 1))
+    userResourceConsumption.put(
+      UserIdentifier("tenant1", "name1"),
+      ResourceConsumption(1, 1, 1, 1, 1, 1))
     val worker =
       new WorkerInfo(
         "localhost",
@@ -258,12 +260,11 @@ class WorkerInfoSuite extends CelebornFunSuite {
         1,
         52428800,
         1,
+        1,
+        1,
         Map(
           "application_1697697127390_2171854" -> ResourceConsumption(
-            20971520,
-            1,
-            52428800,
-            1)).asJava))
+            20971520, 1, 52428800, 1, 1, 1)).asJava))
     val conf = new CelebornConf()
     val endpointAddress = new RpcEndpointAddress(new RpcAddress("localhost", 12345), "mockRpc")
     var rpcEnv: RpcEnv = null

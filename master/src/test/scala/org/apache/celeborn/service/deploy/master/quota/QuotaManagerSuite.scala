@@ -67,14 +67,28 @@ class QuotaManagerSuite extends AnyFunSuite
   test("test check quota return result") {
     val user = UserIdentifier("tenant_01", "Jerry")
     val rc1 =
-      ResourceConsumption(Utils.byteStringAsBytes("10G"), 20, Utils.byteStringAsBytes("1G"), 40)
+      ResourceConsumption(
+        Utils.byteStringAsBytes("10G"),
+        20,
+        Utils.byteStringAsBytes("1G"),
+        40,
+        Utils.byteStringAsBytes("1G"),
+        40)
     val rc2 =
-      ResourceConsumption(Utils.byteStringAsBytes("10G"), 20, Utils.byteStringAsBytes("30G"), 40)
+      ResourceConsumption(
+        Utils.byteStringAsBytes("10G"),
+        20,
+        Utils.byteStringAsBytes("30G"),
+        40,
+        Utils.byteStringAsBytes("1G"),
+        40)
     val rc3 =
       ResourceConsumption(
         Utils.byteStringAsBytes("200G"),
         20000,
         Utils.byteStringAsBytes("30G"),
+        40,
+        Utils.byteStringAsBytes("1G"),
         40)
 
     val res1 = quotaManager.checkQuotaSpaceAvailable(user, rc1)
