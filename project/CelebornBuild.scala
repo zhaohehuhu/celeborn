@@ -364,7 +364,8 @@ object CelebornBuild extends sbt.internal.BuildDef {
       CelebornService.service,
       CelebornWorker.worker,
       CelebornMaster.master,
-      CelebornCli.cli) ++ maybeSparkClientModules ++ maybeFlinkClientModules ++ maybeMRClientModules ++ maybeWebModules
+      CelebornCli.cli,
+      CeleborMPU.celeborMPU) ++ maybeSparkClientModules ++ maybeFlinkClientModules ++ maybeMRClientModules ++ maybeWebModules
   }
 
   // ThisBuild / parallelExecution := false
@@ -488,13 +489,23 @@ object CelebornSpi {
     )
 }
 
+object CeleborMPU {
+
+  lazy val hadoopAwsDependencies = Seq(Dependencies.hadoopAws, Dependencies.awsClient)
+
+  lazy val celeborMPU = Project("celeborn-multipart-uploader", file("multipart-uploader"))
+    .dependsOn(CelebornService.service % "test->test;compile->compile")
+    .settings (
+      commonSettings,
+      libraryDependencies ++= Seq(
+        Dependencies.log4j12Api,
+        Dependencies.log4jSlf4jImpl,
+      ) ++ hadoopAwsDependencies
+    )
+}
+
 object CelebornCommon {
 
-  lazy val hadoopAwsDependencies = if(profiles.exists(_.startsWith("hadoop-aws"))){
-    Seq(Dependencies.hadoopAws, Dependencies.awsClient)
-  } else {
-    Seq.empty
-  }
 
   lazy val common = Project("celeborn-common", file("common"))
     .dependsOn(CelebornSpi.spi)
@@ -532,7 +543,7 @@ object CelebornCommon {
         // SSL support
         Dependencies.bouncycastleBcprovJdk18on,
         Dependencies.bouncycastleBcpkixJdk18on
-      ) ++ commonUnitTestDependencies ++ hadoopAwsDependencies,
+      ) ++ commonUnitTestDependencies,
 
       Compile / sourceGenerators += Def.task {
         val file = (Compile / sourceManaged).value / "org" / "apache" / "celeborn" / "package.scala"
@@ -639,13 +650,13 @@ object CelebornMaster {
 }
 
 object CelebornWorker {
-  lazy val worker = Project("celeborn-worker", file("worker"))
+   var worker = Project("celeborn-worker", file("worker"))
     .dependsOn(CelebornService.service)
     .dependsOn(CelebornCommon.common % "test->test;compile->compile")
     .dependsOn(CelebornService.service % "test->test;compile->compile")
     .dependsOn(CelebornClient.client % "test->compile")
     .dependsOn(CelebornMaster.master % "test->compile")
-    .settings (
+    .settings(
       commonSettings,
       libraryDependencies ++= Seq(
         Dependencies.apLoader,
@@ -662,6 +673,32 @@ object CelebornWorker {
         Dependencies.jerseyTestFrameworkProviderJetty % "test"
       ) ++ commonUnitTestDependencies
     )
+    if (profiles.exists(_.startsWith("aws-mpu"))) {
+      worker = Project("celeborn-worker", file("worker"))
+        .dependsOn(CelebornService.service)
+        .dependsOn(CelebornCommon.common % "test->test;compile->compile")
+        .dependsOn(CelebornService.service % "test->test;compile->compile")
+        .dependsOn(CelebornClient.client % "test->compile")
+        .dependsOn(CelebornMaster.master % "test->compile")
+        .dependsOn(CeleborMPU.celeborMPU % "test->test;compile->compile")
+        .settings(
+          commonSettings,
+          libraryDependencies ++= Seq(
+            Dependencies.apLoader,
+            Dependencies.guava,
+            Dependencies.commonsIo,
+            Dependencies.ioNetty,
+            Dependencies.log4j12Api,
+            Dependencies.log4jSlf4jImpl,
+            Dependencies.leveldbJniAll,
+            Dependencies.roaringBitmap,
+            Dependencies.rocksdbJni,
+            Dependencies.scalatestMockito % "test",
+            Dependencies.jerseyTestFrameworkCore % "test",
+            Dependencies.jerseyTestFrameworkProviderJetty % "test"
+          ) ++ commonUnitTestDependencies
+        )
+   }
 }
 
 ////////////////////////////////////////////////////////
