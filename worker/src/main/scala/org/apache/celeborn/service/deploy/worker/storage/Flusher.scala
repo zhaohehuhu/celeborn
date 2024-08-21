@@ -19,11 +19,15 @@ package org.apache.celeborn.service.deploy.worker.storage
 
 import java.io.IOException
 import java.nio.channels.ClosedByInterruptException
+import java.util
 import java.util.concurrent.{ExecutorService, LinkedBlockingQueue, TimeUnit}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLongArray}
+
 import scala.collection.JavaConverters._
 import scala.util.Random
+
 import io.netty.buffer.{CompositeByteBuf, PooledByteBufAllocator, Unpooled}
+
 import org.apache.celeborn.common.internal.Logging
 import org.apache.celeborn.common.meta.{DiskStatus, TimeWindow}
 import org.apache.celeborn.common.metrics.source.{AbstractSource, ThreadPoolSource}
@@ -35,8 +39,6 @@ import org.apache.celeborn.service.deploy.worker.WorkerSource
 import org.apache.celeborn.service.deploy.worker.WorkerSource.FLUSH_WORKING_QUEUE_SIZE
 import org.apache.celeborn.service.deploy.worker.congestcontrol.CongestionController
 import org.apache.celeborn.service.deploy.worker.memory.MemoryManager
-
-import java.util
 
 abstract private[worker] class Flusher(
     val workerSource: AbstractSource,
@@ -88,13 +90,11 @@ abstract private[worker] class Flusher(
                           DiskStatus.READ_OR_WRITE_FAILURE)
                       case _ =>
                     }
-                    task.abort()
                     logWarning(s"Flusher-$this-thread-$index encounter exception.", t)
                 }
                 lastBeginFlushTime.set(index, -1)
               }
               Utils.tryLogNonFatalError(returnBuffer(task.buffer, task.keepBuffer))
-              task.close()
               task.notifier.numPendingFlushes.decrementAndGet()
             }
           }
@@ -214,112 +214,9 @@ final private[worker] class S3Flusher(
     null,
     "S3") with Logging {
 
-  val hadoopFs = StorageManager.hadoopFs.get(Type.S3)
-
-  val bucketName = hadoopFs.getUri.getHost
-
-  var s3Client = null
-
-  var uploadId = null
-
-  var partNumber = 1
-
-  val partETags = new util.ArrayList()
-
-  initialize()
-  def initialize(): Unit = {
-    val conf = hadoopFs.getConf
-    val s3AccessKey = conf.get("fs.s3a.access.key")
-    val s3SecretKey = conf.get("fs.s3a.secret.key")
-    val s3EndpointRegion = conf.get("fs.s3a.endpoint.region")
-
-    val awsCredentials =
-      DynClasses.builder().impl("com.amazonaws.auth.BasicAWSCredentials")
-        .build()
-        .getDeclaredConstructor(classOf[String], classOf[String])
-        .newInstance(s3AccessKey, s3SecretKey)
-
-    val awsStaticCredentialsProvider =
-      DynClasses.builder().impl("com.amazonaws.auth.AWSStaticCredentialsProvider")
-        .build()
-        .getDeclaredConstructor(awsCredentials.getClass)
-        .newInstance(awsCredentials)
-
-    val amazonS3ClientBuilder = DynMethods.builder("standard")
-      .impl("com.amazonaws.services.s3.AmazonS3ClientBuilder")
-      .buildStatic()
-      .invoke()
-
-    val amazonS3ClientBuilderWithCredentials = DynMethods.builder("withCredentials")
-      .impl(amazonS3ClientBuilder.getClass, awsStaticCredentialsProvider.getClass)
-      .buildStatic()
-      .invoke(awsStaticCredentialsProvider)
-
-    val amazonS3ClientBuilderWithRegion = DynMethods.builder("withRegion")
-      .impl(amazonS3ClientBuilderWithCredentials.getClass, classOf[String])
-      .buildStatic()
-      .invoke(s3EndpointRegion)
-
-    s3Client = DynMethods.builder("build")
-      .impl(amazonS3ClientBuilderWithRegion.getClass)
-      .build()
-      .invoke(amazonS3ClientBuilderWithRegion)
-
-    val initRequest =
-      DynClasses.builder().impl("com.amazonaws.services.s3.model.InitiateMultipartUploadRequest")
-        .build()
-        .getDeclaredConstructor(classOf[String], classOf[String])
-        .newInstance(bucketName, path.toString)
-
-    val initResponse = DynMethods.builder("initiateMultipartUpload")
-      .impl(s3Client.getClass, initRequest.getClass)
-      .build()
-      .invoke(s3Client, initRequest)
-
-    uploadId = DynMethods.builder("getUploadId")
-      .impl(initResponse.getClass)
-      .build()
-      .invoke(initResponse)
-  }
-
   override def processIOException(e: IOException, deviceErrorType: DiskStatus): Unit = {
     logError(s"$this write failed, reason $deviceErrorType ,exception: $e")
   }
 
   override def toString: String = s"s3Flusher@$flusherId"
-
-  override def close(): Unit = {
-
-    val completeRequest = DynClasses
-      .builder()
-      .impl("com.amazonaws.services.s3.model.CompleteMultipartUploadRequest")
-      .build()
-      .getDeclaredConstructor(
-        classOf[String],
-        classOf[String],
-        classOf[String],
-        classOf[util.List[_]])
-      .newInstance(bucketName, path.toString, uploadId, partETags)
-
-    DynMethods
-      .builder("completeMultipartUpload")
-      .impl(s3Client.getClass)
-      .build()
-      .invoke(s3Client, completeRequest)
-  }
-
-  override def abort(): Unit = {
-    val abortRequest = DynClasses
-      .builder()
-      .impl("com.amazonaws.services.s3.model.AbortMultipartUploadRequest")
-      .build()
-      .getDeclaredConstructor(classOf[String], classOf[String], classOf[String])
-      .newInstance(bucketName, path.toString, uploadId)
-
-    DynMethods
-      .builder("abortMultipartUpload")
-      .impl(s3Client.getClass)
-      .build()
-      .invoke(s3Client, abortRequest)
-  }
 }
