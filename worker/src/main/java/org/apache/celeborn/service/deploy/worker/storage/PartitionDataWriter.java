@@ -19,11 +19,9 @@ package org.apache.celeborn.service.deploy.worker.storage;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,6 +39,8 @@ import org.roaringbitmap.RoaringBitmap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.celeborn.AWSCredentials;
+import org.apache.celeborn.S3MultipartUploader;
 import org.apache.celeborn.common.CelebornConf;
 import org.apache.celeborn.common.exception.AlreadyClosedException;
 import org.apache.celeborn.common.exception.CelebornIOException;
@@ -53,9 +53,6 @@ import org.apache.celeborn.common.protocol.PartitionSplitMode;
 import org.apache.celeborn.common.protocol.StorageInfo;
 import org.apache.celeborn.common.unsafe.Platform;
 import org.apache.celeborn.common.util.FileChannelUtils;
-import org.apache.celeborn.reflect.DynClasses;
-import org.apache.celeborn.reflect.DynMethods;
-import org.apache.celeborn.service.deploy.worker.MultipartUploadRequestParam;
 import org.apache.celeborn.service.deploy.worker.WorkerSource;
 import org.apache.celeborn.service.deploy.worker.congestcontrol.BufferStatusHub;
 import org.apache.celeborn.service.deploy.worker.congestcontrol.CongestionController;
@@ -118,7 +115,9 @@ public abstract class PartitionDataWriter implements DeviceObserver {
 
   protected FileSystem hadoopFs;
 
-  protected MultipartUploadRequestParam multipartUploadRequestParam;
+  protected S3MultipartUploader s3MultipartUploader;
+
+  protected int partNumber = 1;
 
   public PartitionDataWriter(
       StorageManager storageManager,
@@ -193,12 +192,26 @@ public abstract class PartitionDataWriter implements DeviceObserver {
       // If we reuse DFS output stream, we will exhaust the memory soon.
       try {
         hadoopFs.create(this.diskFileInfo.getDfsPath(), true).close();
-        this.multipartUploadRequestParam = diskFileInfo.isS3() ? buildMultiPartUpload() : null;
-      } catch (IOException
-          | NoSuchMethodException
-          | InvocationTargetException
-          | InstantiationException
-          | IllegalAccessException e) {
+        if (diskFileInfo.isS3()) {
+          Configuration configuration = hadoopFs.getConf();
+          String s3AccessKey = configuration.get("fs.s3a.access.key");
+          String s3SecretKey = configuration.get("fs.s3a.secret.key");
+          String s3EndpointRegion = configuration.get("fs.s3a.endpoint.region");
+          URI uri = hadoopFs.getUri();
+          String bucketName = uri.getHost();
+          int slashIndex = diskFileInfo.getFilePath().indexOf("/");
+          String key = diskFileInfo.getFilePath().substring(slashIndex + 1);
+          AWSCredentials awsCredentials =
+              new AWSCredentials.Builder()
+                  .withS3AccessKey(s3AccessKey)
+                  .withS3SecretKey(s3SecretKey)
+                  .withS3EndpointRegion(s3EndpointRegion)
+                  .withBucketName(bucketName)
+                  .build();
+          this.s3MultipartUploader = new S3MultipartUploader(awsCredentials, key);
+          this.s3MultipartUploader.startUpload();
+        }
+      } catch (IOException e) {
         try {
           // If create file failed, wait 10 ms and retry
           Thread.sleep(10);
@@ -250,7 +263,8 @@ public abstract class PartitionDataWriter implements DeviceObserver {
                     diskFileInfo.getDfsPath(),
                     notifier,
                     false,
-                    multipartUploadRequestParam);
+                    s3MultipartUploader,
+                    partNumber);
           }
           MemoryManager.instance().releaseMemoryFileStorage(numBytes);
           MemoryManager.instance().incrementDiskBuffer(numBytes);
@@ -284,7 +298,8 @@ public abstract class PartitionDataWriter implements DeviceObserver {
                       diskFileInfo.getDfsPath(),
                       notifier,
                       true,
-                      multipartUploadRequestParam);
+                      s3MultipartUploader,
+                      partNumber);
             }
           }
         }
@@ -293,9 +308,7 @@ public abstract class PartitionDataWriter implements DeviceObserver {
         if (task != null) {
           addTask(task);
           flushBuffer = null;
-          if (multipartUploadRequestParam != null) {
-            multipartUploadRequestParam.incrementPartNumber();
-          }
+          partNumber++;
           if (!fromEvict) {
             diskFileInfo.updateBytesFlushed(numBytes);
           }
@@ -326,6 +339,7 @@ public abstract class PartitionDataWriter implements DeviceObserver {
     }
 
     if (notifier.hasException()) {
+      s3MultipartUploader.complete();
       return;
     }
 
@@ -528,6 +542,7 @@ public abstract class PartitionDataWriter implements DeviceObserver {
         evictInternal();
         if (isClosed()) {
           waitOnNoPending(notifier.numPendingFlushes);
+          s3MultipartUploader.complete();
           storageManager.notifyFileInfoCommitted(shuffleKey, getFile().getName(), diskFileInfo);
         }
       }
@@ -709,114 +724,5 @@ public abstract class PartitionDataWriter implements DeviceObserver {
 
   public MemoryFileInfo getMemoryFileInfo() {
     return memoryFileInfo;
-  }
-
-  private MultipartUploadRequestParam buildMultiPartUpload()
-      throws NoSuchMethodException, InvocationTargetException, InstantiationException,
-          IllegalAccessException {
-    String bucketName = hadoopFs.getUri().getHost();
-    Configuration conf = hadoopFs.getConf();
-    String s3AccessKey = conf.get("fs.s3a.access.key");
-    String s3SecretKey = conf.get("fs.s3a.secret.key");
-    String s3EndpointRegion = conf.get("fs.s3a.endpoint.region");
-
-    Object awsCredentials =
-        DynClasses.builder()
-            .impl("com.amazonaws.auth.BasicAWSCredentials")
-            .build()
-            .getDeclaredConstructor(String.class, String.class)
-            .newInstance(s3AccessKey, s3SecretKey);
-
-    Object awsStaticCredentialsProvider =
-        DynClasses.builder()
-            .impl("com.amazonaws.auth.AWSStaticCredentialsProvider")
-            .build()
-            .getDeclaredConstructor(awsCredentials.getClass())
-            .newInstance(awsCredentials);
-
-    Object amazonS3ClientBuilder =
-        DynMethods.builder("standard")
-            .impl("com.amazonaws.services.s3.AmazonS3ClientBuilder")
-            .buildStatic()
-            .invoke();
-
-    Object amazonS3ClientBuilderWithCredentials =
-        DynMethods.builder("withCredentials")
-            .impl(amazonS3ClientBuilder.getClass(), awsStaticCredentialsProvider.getClass())
-            .buildStatic()
-            .invoke(awsStaticCredentialsProvider);
-
-    Object amazonS3ClientBuilderWithRegion =
-        DynMethods.builder("withRegion")
-            .impl(amazonS3ClientBuilderWithCredentials.getClass(), String.class)
-            .buildStatic()
-            .invoke(s3EndpointRegion);
-
-    Object s3Client =
-        DynMethods.builder("build")
-            .impl(amazonS3ClientBuilderWithRegion.getClass())
-            .build()
-            .invoke(amazonS3ClientBuilderWithRegion);
-
-    Object initRequest =
-        DynClasses.builder()
-            .impl("com.amazonaws.services.s3.model.InitiateMultipartUploadRequest")
-            .build()
-            .getDeclaredConstructor(String.class, String.class)
-            .newInstance(bucketName, diskFileInfo.getDfsPath());
-
-    Object initResponse =
-        DynMethods.builder("initiateMultipartUpload")
-            .impl(s3Client.getClass(), initRequest.getClass())
-            .build()
-            .invoke(s3Client, initRequest);
-
-    Long uploadId =
-        DynMethods.builder("getUploadId")
-            .impl(initResponse.getClass())
-            .build()
-            .invoke(initResponse);
-
-    return new MultipartUploadRequestParam(bucketName, s3Client, uploadId, 1, new ArrayList());
-  }
-
-  private void completeS3MultiPartUpload()
-      throws NoSuchMethodException, InvocationTargetException, InstantiationException,
-          IllegalAccessException {
-
-    Object completeRequest =
-        DynClasses.builder()
-            .impl("com.amazonaws.services.s3.model.CompleteMultipartUploadRequest")
-            .build()
-            .getDeclaredConstructor(String.class, String.class, String.class, List.class)
-            .newInstance(
-                multipartUploadRequestParam.bucketName(),
-                diskFileInfo.getDfsPath(),
-                multipartUploadRequestParam.uploadId(),
-                multipartUploadRequestParam.partETags());
-
-    DynMethods.builder("completeMultipartUpload")
-        .impl(multipartUploadRequestParam.s3Client().getClass())
-        .build()
-        .invoke(multipartUploadRequestParam.s3Client(), completeRequest);
-  }
-
-  private void abortS3MultiPartUpload()
-      throws NoSuchMethodException, InvocationTargetException, InstantiationException,
-          IllegalAccessException {
-    Object abortRequest =
-        DynClasses.builder()
-            .impl("com.amazonaws.services.s3.model.AbortMultipartUploadRequest")
-            .build()
-            .getDeclaredConstructor(String.class, String.class, String.class)
-            .newInstance(
-                multipartUploadRequestParam.bucketName(),
-                diskFileInfo.getDfsPath(),
-                multipartUploadRequestParam.uploadId());
-
-    DynMethods.builder("abortMultipartUpload")
-        .impl(multipartUploadRequestParam.s3Client().getClass())
-        .build()
-        .invoke(multipartUploadRequestParam.s3Client(), abortRequest);
   }
 }

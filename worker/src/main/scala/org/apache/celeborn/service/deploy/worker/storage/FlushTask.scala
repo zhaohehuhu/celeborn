@@ -17,15 +17,14 @@
 
 package org.apache.celeborn.service.deploy.worker.storage
 
-import java.io.{ByteArrayInputStream, InputStream}
+import java.io.ByteArrayInputStream
 import java.nio.channels.FileChannel
 
 import io.netty.buffer.{ByteBufUtil, CompositeByteBuf}
 import org.apache.hadoop.fs.Path
 
+import org.apache.celeborn.S3MultipartUploader
 import org.apache.celeborn.common.protocol.StorageInfo.Type
-import org.apache.celeborn.reflect.{DynClasses, DynMethods}
-import org.apache.celeborn.service.deploy.worker.MultipartUploadRequestParam
 
 abstract private[worker] class FlushTask(
     val buffer: CompositeByteBuf,
@@ -68,68 +67,14 @@ private[worker] class S3FlushTask(
     val path: Path,
     notifier: FlushNotifier,
     keepBuffer: Boolean,
-    multipartUploadRequestParam: MultipartUploadRequestParam)
+    s3MultipartUploader: S3MultipartUploader,
+    partNumber: Int)
   extends FlushTask(buffer, notifier, keepBuffer) {
 
   override def flush(): Unit = {
     val bytes = ByteBufUtil.getBytes(buffer)
     val currentPartSize = bytes.length.toLong
     val inputStream = new ByteArrayInputStream(bytes)
-    val uploadRequest = DynClasses
-      .builder()
-      .impl("com.amazonaws.services.s3.model.UploadPartRequest")
-      .build()
-      .getDeclaredConstructor()
-      .newInstance()
-
-    val uploadRequestWithBucket = DynMethods
-      .builder("withBucketName")
-      .impl(uploadRequest.getClass, classOf[String])
-      .build()
-      .invoke(uploadRequest, multipartUploadRequestParam.bucketName)
-
-    val uploadRequestWithKey = DynMethods
-      .builder("withKey")
-      .impl(uploadRequestWithBucket.getClass, classOf[String])
-      .build()
-      .invoke(uploadRequestWithBucket, path.toString)
-
-    val uploadRequestWithUploadId = DynMethods
-      .builder("withUploadId")
-      .impl(uploadRequestWithKey.getClass, classOf[String])
-      .build()
-      .invoke(uploadRequestWithKey, multipartUploadRequestParam.uploadId)
-
-    val uploadRequestWithPartNumber = DynMethods
-      .builder("withPartNumber")
-      .impl(uploadRequestWithUploadId.getClass, classOf[Int])
-      .build()
-      .invoke(uploadRequestWithUploadId, multipartUploadRequestParam)
-
-    val uploadRequestWithInputStream = DynMethods
-      .builder("withInputStream")
-      .impl(uploadRequestWithPartNumber.getClass, classOf[InputStream])
-      .build()
-      .invoke(uploadRequestWithPartNumber, inputStream)
-
-    val uploadRequestWithPartSize = DynMethods
-      .builder("withPartSize")
-      .impl(uploadRequestWithInputStream.getClass, classOf[Long])
-      .build()
-      .invoke(uploadRequestWithInputStream, currentPartSize)
-
-    val uploadResult = DynMethods
-      .builder("uploadPart")
-      .impl(multipartUploadRequestParam.s3Client.getClass, uploadRequestWithPartSize.getClass)
-      .build()
-      .invoke(uploadRequestWithPartSize)
-
-    val partETag = DynMethods.builder("getPartETag")
-      .impl(uploadResult.getClass)
-      .build()
-      .invoke(uploadResult)
-
-    multipartUploadRequestParam.partETags.add(partETag)
-
+    s3MultipartUploader.putPart(path, inputStream, currentPartSize, partNumber)
   }
 }

@@ -39,6 +39,7 @@
     <module>master</module>
     <module>worker</module>
     <module>web</module>
+    <module>multipart-uploader</module>
   </modules>
 
   <distributionManagement>

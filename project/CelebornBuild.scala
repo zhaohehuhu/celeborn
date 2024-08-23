@@ -456,6 +456,17 @@ object CelebornSpi {
     )
 }
 
+object CeleborMPU {
+  lazy val celeborMPU = Project("celeborn-multipart-uploader", file("multipart-uploader"))
+    .settings (
+      commonSettings,
+      libraryDependencies ++= Seq(
+        Dependencies.log4j12Api,
+        Dependencies.log4jSlf4jImpl,
+      ) ++ hadoopAwsDependencies
+    )
+}
+
 object CelebornCommon {
 
   lazy val hadoopAwsDependencies = if(profiles.exists(_.startsWith("hadoop-aws"))){
