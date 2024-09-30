@@ -339,7 +339,6 @@ public abstract class PartitionDataWriter implements DeviceObserver {
     }
 
     if (notifier.hasException()) {
-      s3MultipartUploader.complete();
       return;
     }
 
@@ -542,10 +541,10 @@ public abstract class PartitionDataWriter implements DeviceObserver {
         evictInternal();
         if (isClosed()) {
           waitOnNoPending(notifier.numPendingFlushes);
-          s3MultipartUploader.complete();
           storageManager.notifyFileInfoCommitted(shuffleKey, getFile().getName(), diskFileInfo);
         }
       }
+      s3MultipartUploader.complete();
     }
   }
 

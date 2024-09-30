@@ -32,9 +32,9 @@ import com.amazonaws.services.s3.model.InitiateMultipartUploadResult;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
+import org.apache.hadoop.fs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.hadoop.fs.Path;
 
 public class S3MultipartUploader {
 
@@ -60,7 +60,6 @@ public class S3MultipartUploader {
   }
 
   public String startUpload() {
-
     InitiateMultipartUploadRequest initRequest =
         new InitiateMultipartUploadRequest(awsCredentials.getBucketName(), key);
     InitiateMultipartUploadResult initResponse = s3Client.initiateMultipartUpload(initRequest);
@@ -81,7 +80,7 @@ public class S3MultipartUploader {
 
       UploadPartResult uploadResult = s3Client.uploadPart(uploadRequest);
       partETags.add(uploadResult.getPartETag());
-    } catch (Exception e) {
+    } catch (RuntimeException e) {
       logger.error("Failed to upload part", e);
     }
   }

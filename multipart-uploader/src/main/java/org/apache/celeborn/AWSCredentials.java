@@ -35,7 +35,7 @@ public class AWSCredentials {
 
   public static class Builder {
 
-    private  String bucketName;
+    private String bucketName;
 
     private String s3AccessKey;
 

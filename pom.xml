@@ -39,7 +39,6 @@
     <module>master</module>
     <module>worker</module>
     <module>web</module>
-    <module>multipart-uploader</module>
   </modules>
 
   <distributionManagement>
@@ -1311,23 +1310,14 @@
       </dependencies>
     </profile>
     <profile>
-      <id>hadoop-aws</id>
+      <id>aws-mpu</id>
+      <modules>
+        <module>multipart-uploader</module>
+      </modules>
       <properties>
-        <hadoop-aws-deps>true</hadoop-aws-deps>
+        <aws-mpu-deps>true</aws-mpu-deps>
         <aws.version>1.12.367</aws.version>
       </properties>
-      <dependencies>
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-aws</artifactId>
-          <version>${hadoop.version}</version>
-        </dependency>
-        <dependency>
-          <groupId>com.amazonaws</groupId>
-          <artifactId>aws-java-sdk-bundle</artifactId>
-          <version>${aws.version}</version>
-        </dependency>
-      </dependencies>
     </profile>
     <profile>
       <id>spark-2.4</id>

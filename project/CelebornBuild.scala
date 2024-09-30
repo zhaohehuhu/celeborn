@@ -457,6 +457,13 @@ object CelebornSpi {
 }
 
 object CeleborMPU {
+
+  lazy val hadoopAwsDependencies = if(profiles.exists(_.startsWith("aws-mpu"))){
+    Seq(Dependencies.hadoopAws, Dependencies.awsClient)
+  } else {
+    Seq.empty
+  }
+
   lazy val celeborMPU = Project("celeborn-multipart-uploader", file("multipart-uploader"))
     .settings (
       commonSettings,
@@ -469,8 +476,9 @@ object CeleborMPU {
 
 object CelebornCommon {
 
-  lazy val hadoopAwsDependencies = if(profiles.exists(_.startsWith("hadoop-aws"))){
-    Seq(Dependencies.hadoopAws, Dependencies.awsClient)
+
+  lazy val celeborMPU = if(profiles.exists(_.startsWith("aws-mpu"))){
+    CeleborMPU.celeborMPU
   } else {
     Seq.empty
   }
@@ -511,7 +519,7 @@ object CelebornCommon {
         // SSL support
         Dependencies.bouncycastleBcprovJdk18on,
         Dependencies.bouncycastleBcpkixJdk18on
-      ) ++ commonUnitTestDependencies ++ hadoopAwsDependencies,
+      ) ++ commonUnitTestDependencies ++ celeborMPU,
 
       Compile / sourceGenerators += Def.task {
         val file = (Compile / sourceManaged).value / "org" / "apache" / "celeborn" / "package.scala"

@@ -10,10 +10,8 @@
 
   <artifactId>celeborn-multipart-uploader_${scala.binary.version}</artifactId>
   <packaging>jar</packaging>
-  <name>celeborn multipart uploader</name>
-  <properties>
-    <aws.version>1.12.367</aws.version>
-  </properties>
+  <name>Celeborn Multipart Uploader</name>
+
   <dependencies>
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
@@ -22,16 +20,6 @@
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-1.2-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk-bundle</artifactId>
-      <version>${aws.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>hadoop-aws</artifactId>
-      <version>${hadoop.version}</version>
     </dependency>
   </dependencies>
 
@@ -43,4 +31,27 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>aws-mpu</id>
+      <activation>
+        <property>
+          <name>aws-mpu-deps</name>
+        </property>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-aws</artifactId>
+          <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+          <groupId>com.amazonaws</groupId>
+          <artifactId>aws-java-sdk-bundle</artifactId>
+          <version>${aws.version}</version>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 </project>
