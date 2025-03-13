@@ -37,9 +37,26 @@ import org.apache.celeborn.common.quota.ResourceConsumption;
 import org.apache.celeborn.common.rpc.RpcEnv;
 import org.apache.celeborn.service.deploy.master.clustermeta.AbstractMetaManager;
 import org.apache.celeborn.service.deploy.master.clustermeta.MetaUtil;
-import org.apache.celeborn.service.deploy.master.clustermeta.ResourceProtos;
-import org.apache.celeborn.service.deploy.master.clustermeta.ResourceProtos.ResourceRequest;
-import org.apache.celeborn.service.deploy.master.clustermeta.ResourceProtos.Type;
+import org.apache.celeborn.common.protocol.ResourceRequest;
+import org.apache.celeborn.common.protocol.Type;
+import org.apache.celeborn.common.protocol.RequestSlotsRequest;
+import org.apache.celeborn.common.protocol.PbUnregisterShuffle;
+import org.apache.celeborn.common.protocol.PbBatchUnregisterShuffles;
+import org.apache.celeborn.common.protocol.AppHeartbeatRequest;
+import org.apache.celeborn.common.protocol.PbApplicationLost;
+import org.apache.celeborn.common.protocol.WorkerExcludeRequest;
+import org.apache.celeborn.common.protocol.PbReviseLostShuffles;
+import org.apache.celeborn.common.protocol.WorkerAddress;
+import org.apache.celeborn.common.protocol.PbRemoveWorkersUnavailableInfo;
+import org.apache.celeborn.common.protocol.PbHeartbeatFromWorker;
+import org.apache.celeborn.common.protocol.PbRegisterWorker;
+import org.apache.celeborn.common.protocol.PbReportWorkerUnavailable;
+import org.apache.celeborn.common.protocol.PbWorkerEventRequest;
+import org.apache.celeborn.common.protocol.PbReportWorkerDecommission;
+import org.apache.celeborn.common.protocol.PbWorkerInfo;
+import org.apache.celeborn.common.protocol.WorkerEventType;
+import org.apache.celeborn.common.protocol.PbApplicationMeta;
+
 
 public class HAMasterMetaManager extends AbstractMetaManager {
   private static final Logger LOG = LoggerFactory.getLogger(HAMasterMetaManager.class);
@@ -74,8 +91,8 @@ public class HAMasterMetaManager extends AbstractMetaManager {
       Map<String, Map<String, Integer>> workerToAllocatedSlots,
       String requestId) {
     try {
-      ResourceProtos.RequestSlotsRequest.Builder builder =
-          ResourceProtos.RequestSlotsRequest.newBuilder()
+      RequestSlotsRequest.Builder builder =
+          RequestSlotsRequest.newBuilder()
               .setShuffleKey(shuffleKey)
               .setHostName(hostName);
       ratisServer.submitRequest(
@@ -98,7 +115,7 @@ public class HAMasterMetaManager extends AbstractMetaManager {
               .setCmdType(Type.UnRegisterShuffle)
               .setRequestId(requestId)
               .setUnregisterShuffleRequest(
-                  ResourceProtos.UnregisterShuffleRequest.newBuilder()
+                      PbUnregisterShuffle.newBuilder()
                       .setShuffleKey(shuffleKey)
                       .build())
               .build());
@@ -116,7 +133,7 @@ public class HAMasterMetaManager extends AbstractMetaManager {
               .setCmdType(Type.BatchUnRegisterShuffle)
               .setRequestId(requestId)
               .setBatchUnregisterShuffleRequest(
-                  ResourceProtos.BatchUnregisterShuffleRequest.newBuilder()
+                      PbBatchUnregisterShuffles.newBuilder()
                       .addAllShuffleKeys(shuffleKeys)
                       .build())
               .build());
@@ -141,7 +158,7 @@ public class HAMasterMetaManager extends AbstractMetaManager {
               .setCmdType(Type.AppHeartbeat)
               .setRequestId(requestId)
               .setAppHeartbeatRequest(
-                  ResourceProtos.AppHeartbeatRequest.newBuilder()
+                  AppHeartbeatRequest.newBuilder()
                       .setAppId(appId)
                       .setTime(time)
                       .setTotalWritten(totalWritten)
@@ -163,7 +180,7 @@ public class HAMasterMetaManager extends AbstractMetaManager {
           ResourceRequest.newBuilder()
               .setCmdType(Type.AppLost)
               .setRequestId(requestId)
-              .setAppLostRequest(ResourceProtos.AppLostRequest.newBuilder().setAppId(appId).build())
+              .setAppLostRequest(PbApplicationLost.newBuilder().setAppId(appId).build())
               .build());
     } catch (CelebornRuntimeException e) {
       LOG.error("Handle app lost for {} failed!", appId, e);
@@ -180,7 +197,7 @@ public class HAMasterMetaManager extends AbstractMetaManager {
               .setCmdType(Type.WorkerExclude)
               .setRequestId(requestId)
               .setWorkerExcludeRequest(
-                  ResourceProtos.WorkerExcludeRequest.newBuilder()
+                  WorkerExcludeRequest.newBuilder()
                       .addAllWorkersToAdd(
                           workersToAdd.stream()
                               .map(MetaUtil::infoToAddr)
@@ -209,7 +226,7 @@ public class HAMasterMetaManager extends AbstractMetaManager {
               .setCmdType(Type.ReviseLostShuffles)
               .setRequestId(requestId)
               .setReviseLostShufflesRequest(
-                  ResourceProtos.ReviseLostShufflesRequest.newBuilder()
+                      PbReviseLostShuffles.newBuilder()
                       .setAppId(appId)
                       .addAllLostShuffles(shuffles)
                       .build())
@@ -229,7 +246,7 @@ public class HAMasterMetaManager extends AbstractMetaManager {
               .setCmdType(Type.WorkerLost)
               .setRequestId(requestId)
               .setWorkerLostRequest(
-                  ResourceProtos.WorkerLostRequest.newBuilder()
+                      WorkerAddress.newBuilder()
                       .setHost(host)
                       .setRpcPort(rpcPort)
                       .setPushPort(pushPort)
@@ -247,15 +264,15 @@ public class HAMasterMetaManager extends AbstractMetaManager {
   public void handleRemoveWorkersUnavailableInfo(
       List<WorkerInfo> unavailableWorkers, String requestId) {
     try {
-      List<ResourceProtos.WorkerAddress> addrs =
-          unavailableWorkers.stream().map(MetaUtil::infoToAddr).collect(Collectors.toList());
+      List<PbWorkerInfo> pbWorkerInfos =
+          unavailableWorkers.stream().map(MetaUtil::infoToPbWorkerInfo).collect(Collectors.toList());
       ratisServer.submitRequest(
           ResourceRequest.newBuilder()
               .setCmdType(Type.RemoveWorkersUnavailableInfo)
               .setRequestId(requestId)
               .setRemoveWorkersUnavailableInfoRequest(
-                  ResourceProtos.RemoveWorkersUnavailableInfoRequest.newBuilder()
-                      .addAllUnavailable(addrs)
+                      PbRemoveWorkersUnavailableInfo.newBuilder()
+                      .addAllWorkerInfo(pbWorkerInfos)
                       .build())
               .build());
     } catch (CelebornRuntimeException e) {
@@ -283,17 +300,17 @@ public class HAMasterMetaManager extends AbstractMetaManager {
               .setCmdType(Type.WorkerHeartbeat)
               .setRequestId(requestId)
               .setWorkerHeartbeatRequest(
-                  ResourceProtos.WorkerHeartbeatRequest.newBuilder()
+                      PbHeartbeatFromWorker.newBuilder()
                       .setHost(host)
                       .setRpcPort(rpcPort)
                       .setPushPort(pushPort)
                       .setFetchPort(fetchPort)
                       .setReplicatePort(replicatePort)
-                      .putAllDisks(MetaUtil.toPbDiskInfos(disks))
+                      .addAllDisks(MetaUtil.toPbDiskInfos(disks).values().stream()
+                                      .collect(Collectors.toList()))
                       .putAllUserResourceConsumption(
                           MetaUtil.toPbUserResourceConsumption(userResourceConsumption))
                       .setWorkerStatus(MetaUtil.toPbWorkerStatus(workerStatus))
-                      .setTime(time)
                       .setHighWorkload(highWorkload)
                       .build())
               .build());
@@ -321,7 +338,7 @@ public class HAMasterMetaManager extends AbstractMetaManager {
               .setCmdType(Type.RegisterWorker)
               .setRequestId(requestId)
               .setRegisterWorkerRequest(
-                  ResourceProtos.RegisterWorkerRequest.newBuilder()
+                      PbRegisterWorker.newBuilder()
                       .setHost(host)
                       .setRpcPort(rpcPort)
                       .setPushPort(pushPort)
@@ -329,7 +346,8 @@ public class HAMasterMetaManager extends AbstractMetaManager {
                       .setReplicatePort(replicatePort)
                       .setInternalPort(internalPort)
                       .setNetworkLocation(networkLocation)
-                      .putAllDisks(MetaUtil.toPbDiskInfos(disks))
+                      . addAllDisks(MetaUtil.toPbDiskInfos(disks).values().stream()
+                              .collect(Collectors.toList()))
                       .putAllUserResourceConsumption(
                           MetaUtil.toPbUserResourceConsumption(userResourceConsumption))
                       .build())
@@ -343,15 +361,15 @@ public class HAMasterMetaManager extends AbstractMetaManager {
   @Override
   public void handleReportWorkerUnavailable(List<WorkerInfo> failedNodes, String requestId) {
     try {
-      List<ResourceProtos.WorkerAddress> addrs =
-          failedNodes.stream().map(MetaUtil::infoToAddr).collect(Collectors.toList());
+      List<PbWorkerInfo> pbWorkerInfo =
+          failedNodes.stream().map(MetaUtil::infoToPbWorkerInfo).collect(Collectors.toList());
       ratisServer.submitRequest(
           ResourceRequest.newBuilder()
               .setCmdType(Type.ReportWorkerUnavailable)
               .setRequestId(requestId)
               .setReportWorkerUnavailableRequest(
-                  ResourceProtos.ReportWorkerUnavailableRequest.newBuilder()
-                      .addAllUnavailable(addrs)
+                      PbReportWorkerUnavailable.newBuilder()
+                      .addAllUnavailable(pbWorkerInfo)
                       .build())
               .build());
     } catch (CelebornRuntimeException e) {
@@ -364,17 +382,17 @@ public class HAMasterMetaManager extends AbstractMetaManager {
   public void handleWorkerEvent(
       int workerEventTypeValue, List<WorkerInfo> workerInfoList, String requestId) {
     try {
-      List<ResourceProtos.WorkerAddress> addrs =
-          workerInfoList.stream().map(MetaUtil::infoToAddr).collect(Collectors.toList());
+      List<PbWorkerInfo> pbWorkerInfo =
+          workerInfoList.stream().map(MetaUtil::infoToPbWorkerInfo).collect(Collectors.toList());
       ratisServer.submitRequest(
           ResourceRequest.newBuilder()
               .setCmdType(Type.WorkerEvent)
               .setRequestId(requestId)
               .setWorkerEventRequest(
-                  ResourceProtos.WorkerEventRequest.newBuilder()
+                      PbWorkerEventRequest.newBuilder()
                       .setWorkerEventType(
-                          ResourceProtos.WorkerEventType.forNumber(workerEventTypeValue))
-                      .addAllWorkerAddress(addrs)
+                          WorkerEventType.forNumber(workerEventTypeValue))
+                      .addAllWorkers(pbWorkerInfo)
                       .build())
               .build());
     } catch (CelebornRuntimeException e) {
@@ -387,15 +405,15 @@ public class HAMasterMetaManager extends AbstractMetaManager {
   @Override
   public void handleReportWorkerDecommission(List<WorkerInfo> workers, String requestId) {
     try {
-      List<ResourceProtos.WorkerAddress> addrs =
-          workers.stream().map(MetaUtil::infoToAddr).collect(Collectors.toList());
+      List<PbWorkerInfo> pbWorkerInfo =
+          workers.stream().map(MetaUtil::infoToPbWorkerInfo).collect(Collectors.toList());
       ratisServer.submitRequest(
           ResourceRequest.newBuilder()
               .setCmdType(Type.ReportWorkerDecommission)
               .setRequestId(MasterClient.genRequestId())
               .setReportWorkerDecommissionRequest(
-                  ResourceProtos.ReportWorkerDecommissionRequest.newBuilder()
-                      .addAllWorkers(addrs)
+                      PbReportWorkerDecommission.newBuilder()
+                      .addAllWorkers(pbWorkerInfo)
                       .build())
               .build());
     } catch (CelebornRuntimeException e) {
@@ -426,7 +444,7 @@ public class HAMasterMetaManager extends AbstractMetaManager {
               .setCmdType(Type.ApplicationMeta)
               .setRequestId(MasterClient.genRequestId())
               .setApplicationMetaRequest(
-                  ResourceProtos.ApplicationMetaRequest.newBuilder()
+                      PbApplicationMeta.newBuilder()
                       .setAppId(applicationMeta.appId())
                       .setSecret(applicationMeta.secret())
                       .build())

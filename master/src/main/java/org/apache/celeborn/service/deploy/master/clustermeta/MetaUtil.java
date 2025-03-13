@@ -30,6 +30,11 @@ import org.apache.celeborn.common.protocol.StorageInfo;
 import org.apache.celeborn.common.quota.ResourceConsumption;
 import org.apache.celeborn.common.util.CollectionUtils;
 import org.apache.celeborn.common.util.Utils;
+import org.apache.celeborn.common.protocol.WorkerAddress;
+import org.apache.celeborn.common.protocol.PbWorkerInfo;
+import org.apache.celeborn.common.protocol.PbDiskInfo;
+import org.apache.celeborn.common.protocol.PbResourceConsumption;
+import org.apache.celeborn.common.protocol.PbWorkerStatus;
 
 public class MetaUtil {
   private MetaUtil() {}
@@ -44,8 +49,8 @@ public class MetaUtil {
         address.getInternalPort());
   }
 
-  public static ResourceProtos.WorkerAddress infoToAddr(WorkerInfo info) {
-    return ResourceProtos.WorkerAddress.newBuilder()
+  public static WorkerAddress infoToAddr(WorkerInfo info) {
+    return WorkerAddress.newBuilder()
         .setHost(info.host())
         .setRpcPort(info.rpcPort())
         .setPushPort(info.pushPort())
@@ -53,6 +58,17 @@ public class MetaUtil {
         .setReplicatePort(info.replicatePort())
         .setInternalPort(info.internalPort())
         .build();
+  }
+
+  public static PbWorkerInfo infoToPbWorkerInfo(WorkerInfo info) {
+    return PbWorkerInfo.newBuilder()
+            .setHost(info.host())
+            .setRpcPort(info.rpcPort())
+            .setPushPort(info.pushPort())
+            .setFetchPort(info.fetchPort())
+            .setReplicatePort(info.replicatePort())
+            .setInternalPort(info.internalPort())
+            .build();
   }
 
   public static Map<String, DiskInfo> fromPbDiskInfos(
@@ -76,14 +92,14 @@ public class MetaUtil {
     return map;
   }
 
-  public static Map<String, ResourceProtos.DiskInfo> toPbDiskInfos(
-      Map<String, DiskInfo> diskInfos) {
-    Map<String, ResourceProtos.DiskInfo> map = new HashMap<>();
+  public static Map<String,  PbDiskInfo> toPbDiskInfos(
+      Map<String,DiskInfo> diskInfos) {
+    Map<String, PbDiskInfo> map = new HashMap<>();
     diskInfos.forEach(
         (k, v) ->
             map.put(
                 k,
-                ResourceProtos.DiskInfo.newBuilder()
+                    PbDiskInfo.newBuilder()
                     .setMountPoint(v.mountPoint())
                     .setUsableSpace(v.actualUsableSpace())
                     .setAvgFlushTime(v.avgFlushTime())
@@ -97,29 +113,29 @@ public class MetaUtil {
   }
 
   public static ResourceConsumption fromPbResourceConsumption(
-      ResourceProtos.ResourceConsumption pbResourceConsumption) {
+          PbResourceConsumption pbResourceConsumption) {
     return new ResourceConsumption(
         pbResourceConsumption.getDiskBytesWritten(),
         pbResourceConsumption.getDiskFileCount(),
         pbResourceConsumption.getHdfsBytesWritten(),
         pbResourceConsumption.getHdfsFileCount(),
-        fromPbSubResourceConsumptions(pbResourceConsumption.getSubResourceConsumptionMap()));
+        fromPbSubResourceConsumptions(pbResourceConsumption.getSubResourceConsumptionsMap()));
   }
 
-  public static ResourceProtos.ResourceConsumption toPbResourceConsumption(
+  public static PbResourceConsumption toPbResourceConsumption(
       ResourceConsumption resourceConsumption) {
-    return ResourceProtos.ResourceConsumption.newBuilder()
+    return PbResourceConsumption.newBuilder()
         .setDiskBytesWritten(resourceConsumption.diskBytesWritten())
         .setDiskFileCount(resourceConsumption.diskFileCount())
         .setHdfsBytesWritten(resourceConsumption.hdfsBytesWritten())
         .setHdfsFileCount(resourceConsumption.hdfsFileCount())
-        .putAllSubResourceConsumption(
+        .putAllSubResourceConsumptions(
             toPbSubResourceConsumptions(resourceConsumption.subResourceConsumptions()))
         .build();
   }
 
   public static Map<String, ResourceConsumption> fromPbSubResourceConsumptions(
-      Map<String, ResourceProtos.ResourceConsumption> pbSubResourceConsumptions) {
+      Map<String, PbResourceConsumption> pbSubResourceConsumptions) {
     return CollectionUtils.isEmpty(pbSubResourceConsumptions)
         ? null
         : pbSubResourceConsumptions.entrySet().stream()
@@ -130,10 +146,10 @@ public class MetaUtil {
                         fromPbResourceConsumption(resourceConsumption.getValue())));
   }
 
-  public static Map<String, ResourceProtos.ResourceConsumption> toPbSubResourceConsumptions(
+  public static Map<String, PbResourceConsumption> toPbSubResourceConsumptions(
       Map<String, ResourceConsumption> subResourceConsumptions) {
     return CollectionUtils.isEmpty(subResourceConsumptions)
-        ? new HashMap<>()
+        ? new HashMap<String, PbResourceConsumption>()
         : subResourceConsumptions.entrySet().stream()
             .collect(
                 Collectors.toMap(
@@ -143,28 +159,28 @@ public class MetaUtil {
   }
 
   public static Map<UserIdentifier, ResourceConsumption> fromPbUserResourceConsumption(
-      Map<String, ResourceProtos.ResourceConsumption> pbUserResourceConsumption) {
+      Map<String, PbResourceConsumption> pbUserResourceConsumption) {
     Map<UserIdentifier, ResourceConsumption> map = new HashMap<>();
     pbUserResourceConsumption.forEach(
         (k, v) -> map.put(UserIdentifier$.MODULE$.apply(k), fromPbResourceConsumption(v)));
     return map;
   }
 
-  public static Map<String, ResourceProtos.ResourceConsumption> toPbUserResourceConsumption(
+  public static Map<String, PbResourceConsumption> toPbUserResourceConsumption(
       Map<UserIdentifier, ResourceConsumption> userResourceConsumption) {
-    Map<String, ResourceProtos.ResourceConsumption> map = new HashMap<>();
+    Map<String, PbResourceConsumption> map = new HashMap<>();
     userResourceConsumption.forEach((k, v) -> map.put(k.toString(), toPbResourceConsumption(v)));
     return map;
   }
 
-  public static ResourceProtos.WorkerStatus toPbWorkerStatus(WorkerStatus workerStatus) {
-    return ResourceProtos.WorkerStatus.newBuilder()
-        .setState(ResourceProtos.WorkerStatus.State.forNumber(workerStatus.getStateValue()))
+  public static PbWorkerStatus toPbWorkerStatus(WorkerStatus workerStatus) {
+    return PbWorkerStatus.newBuilder()
+        .setState(org.apache.celeborn.common.protocol.PbWorkerStatus.State.forNumber(workerStatus.getStateValue()))
         .setStateStartTime(workerStatus.getStateStartTime())
         .build();
   }
 
-  public static WorkerStatus fromPbWorkerStatus(ResourceProtos.WorkerStatus workerStatus) {
+  public static WorkerStatus fromPbWorkerStatus(WorkerStatus workerStatus) {
     return new WorkerStatus(workerStatus.getState().getNumber(), workerStatus.getStateStartTime());
   }
 }

@@ -37,6 +37,7 @@ import org.apache.celeborn.common.util.CollectionUtils;
 import org.apache.celeborn.service.deploy.master.clustermeta.MetaUtil;
 import org.apache.celeborn.service.deploy.master.clustermeta.ResourceProtos;
 import org.apache.celeborn.service.deploy.master.clustermeta.ResourceProtos.ResourceResponse;
+import org.apache.celeborn.common.protocol.PbResourceConsumption;
 
 public class MetaHandler {
   private static final Logger LOG = LoggerFactory.getLogger(MetaHandler.class);
@@ -61,17 +62,25 @@ public class MetaHandler {
    * @param request MasterMetaRequest.
    * @return MasterMetaResponse builder.
    */
-  public static ResourceResponse.Builder getMasterMetaResponseBuilder(
+  public static ResourceProtos.ResourceResponse.Builder getMasterMetaResponseBuilder(
       ResourceProtos.ResourceRequest request) {
-    return ResourceResponse.newBuilder()
+    return ResourceProtos.ResourceResponse.newBuilder()
         .setCmdType(request.getCmdType())
         .setStatus(ResourceProtos.Status.OK)
         .setSuccess(true);
   }
 
-  public ResourceResponse handleReadRequest(ResourceProtos.ResourceRequest request) {
+  public static org.apache.celeborn.common.protocol.ResourceResponse.Builder getNewMasterMetaResponseBuilder(
+          org.apache.celeborn.common.protocol.ResourceRequest request) {
+    return org.apache.celeborn.common.protocol.ResourceResponse.newBuilder()
+            .setCmdType(request.getCmdType())
+            .setStatus(org.apache.celeborn.common.protocol.Status.OK)
+            .setSuccess(true);
+  }
+
+  public ResourceProtos.ResourceResponse handleReadRequest(ResourceProtos.ResourceRequest request) {
     ResourceProtos.Type cmdType = request.getCmdType();
-    ResourceResponse.Builder responseBuilder = getMasterMetaResponseBuilder(request);
+    ResourceProtos.ResourceResponse.Builder responseBuilder = getMasterMetaResponseBuilder(request);
     try {
       switch (cmdType) {
         default:
@@ -88,9 +97,28 @@ public class MetaHandler {
     return responseBuilder.build();
   }
 
-  public ResourceResponse handleWriteRequest(ResourceProtos.ResourceRequest request) {
+  public org.apache.celeborn.common.protocol.ResourceResponse handleNewReadRequest(org.apache.celeborn.common.protocol.ResourceRequest request) {
+    org.apache.celeborn.common.protocol.Type cmdType = request.getCmdType();
+    org.apache.celeborn.common.protocol.ResourceResponse.Builder responseBuilder = getNewMasterMetaResponseBuilder(request);
+    try {
+      switch (cmdType) {
+        default:
+          throw new IOException("Can not parse this command!" + request);
+      }
+    } catch (IOException e) {
+      LOG.warn("Handle meta read request {} failed!", cmdType, e);
+      responseBuilder.setSuccess(false);
+      responseBuilder.setStatus(org.apache.celeborn.common.protocol.Status.INTERNAL_ERROR);
+      if (e.getMessage() != null) {
+        responseBuilder.setMessage(e.getMessage());
+      }
+    }
+    return responseBuilder.build();
+  }
+
+  public ResourceProtos.ResourceResponse handleWriteRequest(ResourceProtos.ResourceRequest request) {
     ResourceProtos.Type cmdType = request.getCmdType();
-    ResourceResponse.Builder responseBuilder = getMasterMetaResponseBuilder(request);
+    ResourceProtos.ResourceResponse.Builder responseBuilder = getMasterMetaResponseBuilder(request);
     try {
       String shuffleKey;
       String appId;

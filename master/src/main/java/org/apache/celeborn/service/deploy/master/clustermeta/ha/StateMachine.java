@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.ratis.io.MD5Hash;
 import org.apache.ratis.proto.RaftProtos;
 import org.apache.ratis.protocol.Message;
@@ -225,14 +226,19 @@ public class StateMachine extends BaseStateMachine {
   /** Query the state machine. The request must be read-only. */
   @Override
   public CompletableFuture<Message> query(Message request) {
+    byte[] bytes = request.getContent().toByteArray();
     try {
-      byte[] bytes = request.getContent().toByteArray();
-      return CompletableFuture.completedFuture(
-          queryCommand(ResourceProtos.ResourceRequest.parseFrom(bytes)));
-    } catch (IOException e) {
-      return completeExceptionally(e);
+      ResourceProtos.ResourceRequest resourceRequest = ResourceProtos.ResourceRequest.parseFrom(bytes);
+      return CompletableFuture.completedFuture(queryCommand(resourceRequest));
+    } catch (InvalidProtocolBufferException invalidProtocolBufferException) {
+      try {
+        org.apache.celeborn.common.protocol.ResourceRequest celebornRequest = org.apache.celeborn.common.protocol.ResourceRequest.parseFrom(bytes);
+        return CompletableFuture.completedFuture(queryCommand(celebornRequest));
+      } catch (IOException ioException) {
+        return completeExceptionally(ioException);
+      }
     }
-  }
+    }
 
   /**
    * Submits read request to MetaSystem and returns the response Message.
@@ -243,6 +249,11 @@ public class StateMachine extends BaseStateMachine {
   private Message queryCommand(ResourceProtos.ResourceRequest request) {
     ResourceResponse response = metaHandler.handleReadRequest(request);
     return HAHelper.convertResponseToMessage(response);
+  }
+
+  private Message queryCommand(org.apache.celeborn.common.protocol.ResourceRequest request) {
+    org.apache.celeborn.common.protocol.ResourceResponse response = metaHandler.handleNewReadRequest(request);
+    return HAHelper.convertNewResponseToMessage(response);
   }
 
   /**

@@ -64,8 +64,8 @@ import org.apache.celeborn.common.network.ssl.SSLFactory;
 import org.apache.celeborn.common.protocol.TransportModuleConstants;
 import org.apache.celeborn.common.util.ThreadUtils;
 import org.apache.celeborn.common.util.Utils;
-import org.apache.celeborn.service.deploy.master.clustermeta.ResourceProtos;
-import org.apache.celeborn.service.deploy.master.clustermeta.ResourceProtos.ResourceResponse;
+import org.apache.celeborn.common.protocol.ResourceResponse;
+import org.apache.celeborn.common.protocol.ResourceRequest;
 
 public class HARaftServer {
   public static final Logger LOG = LoggerFactory.getLogger(HARaftServer.class);
@@ -218,7 +218,7 @@ public class HARaftServer {
     return new HARaftServer(metaHandler, conf, localRaftPeerId, localNode, raftPeers);
   }
 
-  public ResourceResponse submitRequest(ResourceProtos.ResourceRequest request)
+  public ResourceResponse submitRequest(ResourceRequest request)
       throws CelebornRuntimeException {
     String requestId = request.getRequestId();
     Tuple2<String, Long> decoded = MasterClient.decodeRequestId(requestId);
@@ -235,7 +235,7 @@ public class HARaftServer {
             .setGroupId(RAFT_GROUP_ID)
             .setCallId(callId)
             .setType(RaftClientRequest.writeRequestType())
-            .setMessage(Message.valueOf(HAHelper.convertRequestToByteString(request)))
+            .setMessage(Message.valueOf(HAHelper.convertNewRequestToByteString(request)))
             .build();
 
     RaftClientReply raftClientReply;

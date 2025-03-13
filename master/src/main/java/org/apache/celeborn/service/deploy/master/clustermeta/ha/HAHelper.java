@@ -112,7 +112,23 @@ public class HAHelper {
     return ResourceProtos.ResourceRequest.parseFrom(bytes);
   }
 
+  public static ByteString convertNewRequestToByteString(org.apache.celeborn.common.protocol.ResourceRequest request) {
+    byte[] requestBytes = request.toByteArray();
+    return ByteString.copyFrom(requestBytes);
+  }
+
+  public static org.apache.celeborn.common.protocol.ResourceRequest convertNewByteStringToRequest(ByteString byteString)
+          throws InvalidProtocolBufferException {
+    byte[] bytes = byteString.toByteArray();
+    return org.apache.celeborn.common.protocol.ResourceRequest.parseFrom(bytes);
+  }
+
   public static Message convertResponseToMessage(ResourceProtos.ResourceResponse response) {
+    byte[] requestBytes = response.toByteArray();
+    return Message.valueOf(ByteString.copyFrom(requestBytes));
+  }
+
+  public static Message convertNewResponseToMessage(org.apache.celeborn.common.protocol.ResourceResponse response) {
     byte[] requestBytes = response.toByteArray();
     return Message.valueOf(ByteString.copyFrom(requestBytes));
   }
